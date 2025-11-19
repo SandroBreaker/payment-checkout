@@ -1,7 +1,7 @@
 // ========================================================
 // ⚙️ CONFIGURAÇÃO CENTRAL
 // ========================================================
-const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tMy0Y3IMHoUw9_oTu79oOeDqwfDSse5SklzEi3JxPlevsRh5BDsg/exec'; 
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbw0tZ66QIzYiGsD2XNyX9I3dv5r5zfAqPDywPTrRXYJsNsbeJS9Mlo_GdIdynl9p8EwqQ/exec'; 
 const BASE_URL = window.location.href.split('?')[0]; 
 
 // 🔐 CONFIGURAÇÃO DE SEGURANÇA
