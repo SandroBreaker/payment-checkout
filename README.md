@@ -1,26 +1,65 @@
-# 📚 Documentação do Banco de Dados (Google Sheets)
+# 📦 Plataforma de Checkout Seguro (Unified Deploy)
 
-Para garantir o funcionamento correto do sistema unificado (Admin + Cliente), a aba da planilha deve seguir estritamente a estrutura abaixo.
+Este projeto unifica o **Painel Admin** (Gerador de Links) e a **Visão do Cliente** (Checkout) em uma única aplicação (SPA - Single Page Application). A interface se adapta automaticamente com base na URL acessada.
 
-**Nome da Aba (Tab Name):** `BD`
+---
 
-## 📋 Cabeçalhos Obrigatórios (Linha 1)
-A ordem das colunas não importa, mas os nomes devem ser respeitados (maios/minúsculas não interferem, mas evite acentos se possível).
+## 🚀 Instalação e Configuração
 
-| Coluna (Header) | Descrição / Função | Tipo de Dado |
-| :--- | :--- | :--- |
-| **ID** | Identificador único (UUID). Gerado automaticamente pelo sistema. | Texto (ex: `a7b4...`) |
-| **Comprador** | Nome do cliente que aparecerá na interface. | Texto |
-| **Link Pagamento** | O link de checkout (ex: Mercado Pago, Stripe) para onde o botão verde irá. | URL |
-| **Valor Total** | Valor principal do produto. | Moeda (ex: `R$ 1.000,00`) |
-| **Taxa de Serviço** | Valor da taxa que o cliente paga para liberar o reembolso. | Moeda |
-| **Prazo** | Tempo para o reembolso (ex: `15 minutos`, `12 horas`). | Texto |
-| **Custo Frete** | Valor do frete (use `0` para "Grátis"). | Moeda/Texto |
-| **Tarifa Plataforma** | Tarifa interna (use `0` para "Inclusa"). | Moeda/Texto |
-| **CPF** | CPF mascarado para exibição de segurança. | Texto (ex: `***.123.***-**`) |
-| **Cartão** | Info do cartão mascarado. | Texto (ex: `Mastercard **** 1234`) |
-| **Vendas** | Texto de prova social (Histórico). | Texto |
-| **Atendimento** | Nota de avaliação. | Texto |
-| **Entrega** | Estatística de entrega. | Texto |
+Siga os passos abaixo rigorosamente para garantir o funcionamento da integração entre o Frontend e o Google Sheets.
 
-> **Nota:** O sistema possui "aliases" inteligentes. Se você usar "Link" ou "Checkout" ao invés de "Link Pagamento", ele entenderá. Mas recomendo manter o padrão acima.
+### 1. Configuração da Planilha (Banco de Dados)
+Crie uma nova Planilha Google (ou utilize uma existente).
+
+1.  **Nome da Aba:** Renomeie a aba inferior para `BD`.
+    * *Nota:* Se preferir outro nome, ajuste a variável `SHEET_NAME` no arquivo `backend.js`.
+2.  **Cabeçalhos (Linha 1):** Crie as colunas exatamente com os nomes abaixo (a ordem não importa, a escrita sim):
+    * `id`
+    * `data`
+    * `comprador`
+    * `linkPagamento` (ou `checkout`)
+    * `valor` (ou `valor total`)
+    * `taxa` (ou `taxa de serviço`)
+    * `prazo`
+    * `frete`
+    * `tarifa`
+    * `cpf`
+    * `cartao`
+    * `vendas`
+    * `atendimento`
+    * `entrega`
+
+---
+
+### 2. Configuração do Backend (Google Apps Script)
+No editor de script da sua planilha (vá em **Extensões** > **Apps Script**):
+
+1.  **Código:** Apague qualquer código existente e cole o conteúdo do arquivo **`backend.js`**.
+2.  **ID da Planilha:**
+    * Copie o ID na URL da sua planilha (a sequência de letras e números entre `/d/` e `/edit`):
+        `https://docs.google.com/spreadsheets/d/`**`COLE_O_ID_AQUI`**`/edit`
+    * No código `backend.js`, substitua o valor da constante:
+        ```javascript
+        const SPREADSHEET_ID = "SEU_ID_AQUI";
+        ```
+3.  **Salvar e Implantar:**
+    * Clique no botão **Implantar (Deploy)** > **Nova implantação**.
+    * **Tipo:** Selecione "App da Web" (Web App) na engrenagem.
+    * **Descrição:** Digite `v1`.
+    * **Executar como:** Selecione **"Eu"** (seu email).
+    * **Quem pode acessar:** Selecione **"Qualquer pessoa"** (Anyone).
+        * ⚠️ *Importante: Se não marcar "Qualquer pessoa", o site não funcionará para o cliente.*
+    * Clique em **Implantar**.
+4.  **URL do Script:** Copie a URL gerada (ela termina em `/exec`).
+
+---
+
+### 3. Configuração do Frontend
+Abra o arquivo **`script.js`** do seu projeto web:
+
+1.  Localize a constante de configuração no topo do arquivo:
+2.  Substitua pela URL que você copiou no passo anterior.
+
+```javascript
+// Exemplo:
+const BACKEND_URL = '[https://script.google.com/macros/s/AKfycb.../exec](https://script.google.com/macros/s/AKfycb.../exec)';
