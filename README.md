@@ -1,65 +1,48 @@
-# 📦 Plataforma de Checkout Seguro (Unified Deploy)
+# 📦 Plataforma de Checkout Seguro (Unified Deploy + PIN Protection)
 
-Este projeto unifica o **Painel Admin** (Gerador de Links) e a **Visão do Cliente** (Checkout) em uma única aplicação (SPA - Single Page Application). A interface se adapta automaticamente com base na URL acessada.
-
----
-
-## 🚀 Instalação e Configuração
-
-Siga os passos abaixo rigorosamente para garantir o funcionamento da integração entre o Frontend e o Google Sheets.
-
-### 1. Configuração da Planilha (Banco de Dados)
-Crie uma nova Planilha Google (ou utilize uma existente).
-
-1.  **Nome da Aba:** Renomeie a aba inferior para `BD`.
-    * *Nota:* Se preferir outro nome, ajuste a variável `SHEET_NAME` no arquivo `backend.js`.
-2.  **Cabeçalhos (Linha 1):** Crie as colunas exatamente com os nomes abaixo (a ordem não importa, a escrita sim):
-    * `id`
-    * `data`
-    * `comprador`
-    * `linkPagamento` (ou `checkout`)
-    * `valor` (ou `valor total`)
-    * `taxa` (ou `taxa de serviço`)
-    * `prazo`
-    * `frete`
-    * `tarifa`
-    * `cpf`
-    * `cartao`
-    * `vendas`
-    * `atendimento`
-    * `entrega`
+Este projeto unifica o **Painel Admin** (Gerador de Links) e a **Visão do Cliente** (Checkout) em uma única aplicação. O acesso ao Admin é protegido por um PIN numérico.
 
 ---
 
-### 2. Configuração do Backend (Google Apps Script)
-No editor de script da sua planilha (vá em **Extensões** > **Apps Script**):
+## 🚀 Instalação
 
-1.  **Código:** Apague qualquer código existente e cole o conteúdo do arquivo **`backend.js`**.
-2.  **ID da Planilha:**
-    * Copie o ID na URL da sua planilha (a sequência de letras e números entre `/d/` e `/edit`):
-        `https://docs.google.com/spreadsheets/d/`**`COLE_O_ID_AQUI`**`/edit`
-    * No código `backend.js`, substitua o valor da constante:
-        ```javascript
-        const SPREADSHEET_ID = "SEU_ID_AQUI";
-        ```
-3.  **Salvar e Implantar:**
-    * Clique no botão **Implantar (Deploy)** > **Nova implantação**.
-    * **Tipo:** Selecione "App da Web" (Web App) na engrenagem.
-    * **Descrição:** Digite `v1`.
-    * **Executar como:** Selecione **"Eu"** (seu email).
-    * **Quem pode acessar:** Selecione **"Qualquer pessoa"** (Anyone).
-        * ⚠️ *Importante: Se não marcar "Qualquer pessoa", o site não funcionará para o cliente.*
-    * Clique em **Implantar**.
-4.  **URL do Script:** Copie a URL gerada (ela termina em `/exec`).
+### 1. Configuração da Planilha (Database)
+Crie uma nova Planilha Google.
+1.  **Nome da Aba:** Renomeie para `BD`.
+2.  **Cabeçalhos (Linha 1):** Adicione exatamente estas colunas:
+    * `id`, `data`, `comprador`, `linkPagamento`, `valor`, `taxa`, `prazo`, `frete`, `tarifa`, `cpf`, `cartao`, `vendas`, `atendimento`, `entrega`
 
----
+### 2. Configuração do Backend (GAS)
+No editor de script da planilha (Extensões > Apps Script):
+1.  Cole o código do arquivo **`backend.js`** (do envio anterior, não houve mudança).
+2.  Substitua `SPREADSHEET_ID` pelo ID da sua planilha.
+3.  **Implantar** > **Nova Implantação** > Tipo "App da Web" > Acesso: "Qualquer pessoa" (Anyone).
+4.  Copie a URL gerada.
 
 ### 3. Configuração do Frontend
-Abra o arquivo **`script.js`** do seu projeto web:
+No arquivo **`script.js`**:
+1.  Cole a URL do Web App na variável `BACKEND_URL`.
+2.  **Defina sua Senha:** Altere a variável `ADMIN_PIN = "2025"` para o código que você deseja usar (ex: "9988").
 
-1.  Localize a constante de configuração no topo do arquivo:
-2.  Substitua pela URL que você copiou no passo anterior.
+---
 
-```javascript
-// Exemplo:
-const BACKEND_URL = '[https://script.google.com/macros/s/AKfycb.../exec](https://script.google.com/macros/s/AKfycb.../exec)';
+## 📖 Como Usar
+
+### 🔐 Acesso Admin (Você)
+Acesse a raiz do site: `https://seu-site.github.io/`
+1.  Uma tela de bloqueio pedirá o PIN.
+2.  Digite o código (padrão: 2025).
+3.  O sistema libera o formulário e mantém você logado (salvo no navegador).
+4.  Gere o link para o cliente.
+
+### 🛒 Acesso Cliente (Checkout)
+O link gerado terá o formato: `https://seu-site.github.io/?id=...`
+1.  Ao clicar no link, o sistema detecta o ID.
+2.  **Pula a tela de login** automaticamente.
+3.  Exibe os detalhes da transação segura.
+
+---
+
+## ⚠️ Notas Importantes
+* **Segurança:** O PIN é verificado no navegador (Client-side). Para o seu contexto de uso, isso impede o acesso de curiosos, mas não de hackers avançados.
+* **Logout:** Há um botão "Sair" no topo do painel admin para bloquear o acesso novamente.
