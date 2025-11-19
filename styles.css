@@ -1,0 +1,176 @@
+/* ========================================================
+   RESET & BASE
+   ======================================================== */
+html, body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #1e1e1e;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  color: #f4f4f4;
+}
+
+/* ========================================================
+   ESTILOS COMPARTILHADOS
+   ======================================================== */
+.hidden { opacity: 0; pointer-events: none; display: none; }
+.visible { opacity: 1; pointer-events: auto; display: inline-block; }
+
+/* Botões Gerais */
+button { cursor: pointer; transition: all 0.3s; }
+button:disabled { cursor: not-allowed; opacity: 0.7; }
+
+/* ========================================================
+   VISÃO: ADMIN (Formulários e Modais)
+   ======================================================== */
+#adminForm { 
+  max-width: 500px; margin: 30px auto; background: #2b2b2b; padding: 30px; 
+  border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.admin-title { text-align: center; color: #00bfa5; margin-top: 0; }
+
+#adminForm label { 
+  display: block; font-size: 12px; color: #ccc; 
+  text-transform: uppercase; font-weight: bold; margin-top: 15px; 
+}
+
+#adminForm input { 
+  width: 100%; padding: 12px; margin-top: 5px; background: #3a3a3a; 
+  border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; 
+  font-size: 15px; transition: 0.3s;
+}
+#adminForm input:focus { border-color: #00bfa5; outline: none; background: #444; }
+#adminForm input:disabled { cursor: wait; color: #888; }
+
+#btnSalvar { 
+  width: 100%; padding: 15px; background: #00bfa5; border: none; 
+  border-radius: 8px; color: #fff; font-weight: bold; font-size: 16px; margin-top: 25px; 
+}
+#btnSalvar:hover { background: #009e8e; transform: translateY(-2px); }
+
+/* Admin Toggle */
+.toggle-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 15px; margin: 20px -30px 0;
+  border-top: 1px solid #444; border-bottom: 1px solid #444;
+  cursor: pointer; background: #3a3a3a; transition: background 0.2s;
+}
+.toggle-header:hover { background: #444; }
+.toggle-header p { font-size: 12px; color: #00bfa5; letter-spacing: 1px; font-weight: bold; margin: 0; }
+
+#preset-fields-container { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-in-out; }
+.toggle-icon { transition: transform 0.3s ease; }
+.toggle-icon.rotated { transform: rotate(180deg); color: #00bfa5; }
+
+/* Modal Admin */
+.modal { 
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+  background: rgba(0,0,0,0.9); align-items: center; justify-content: center; z-index: 1000;
+}
+.modal.active { display: flex; animation: fadeIn 0.3s; }
+.modal-box { 
+  background: #222; padding: 30px; border-radius: 10px; text-align: center; 
+  max-width: 450px; width: 90%; border: 1px solid #444; box-shadow: 0 0 50px rgba(0,191,165,0.2);
+}
+.link-display { 
+  background: #111; padding: 15px; color: #00bfa5; word-break: break-all; 
+  margin: 20px 0; border-radius: 5px; font-family: monospace; border: 1px dashed #333; font-size: 13px;
+}
+.actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.btn-action { 
+  padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; 
+  width: 100%; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none;
+}
+.btn-copy { background: #fff; color: #000; }
+.btn-copy:hover { background: #f0f0f0; }
+.btn-view { background: #333; color: #fff; border: 1px solid #555; }
+.btn-view:hover { background: #444; border-color: #fff; }
+.btn-new { background: transparent; color: #888; border: 1px solid #444; width: 100%; margin-top: 5px; }
+.btn-new:hover { color: #fff; border-color: #fff; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ========================================================
+   VISÃO: CLIENTE (Card de Transação)
+   ======================================================== */
+.client-container {
+  max-width: 90%; margin: 20px auto; background: #2a2a2a; border-radius: 1em;
+  overflow: hidden; box-shadow: 0 1vh 2vh rgba(0,0,0,0.4);
+}
+
+.header-image {
+  width: 100%; height: 25vh;
+  background: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRR0tev2hE3dzdpAruZKY9QNodWpXoiqkBagMCxCbeiXA&s=10') center/cover no-repeat;
+}
+
+.header-title {
+  text-align: center; color: #fff; background-color: #800080;
+  padding: 1.5vh 1em; font-size: 2.2vh; font-weight: bold;
+}
+
+.content { padding: 2vh 2%; }
+.content h2 { color: #b57cf2; font-size: 2vh; margin-top: 2vh; margin-bottom: 1vh; }
+.content p { font-size: 1.8vh; line-height: 1.5; color: #e0e0e0; margin: 5px 0; }
+.highlight { font-weight: bold; color: #c084f5; }
+
+ul { padding-left: 5%; margin: 1.5vh 0; color: #d9d9d9; }
+li { margin-bottom: 1vh; }
+
+/* Client Form */
+#dadosCliente {
+  background: #2b2b2b; padding: 20px; border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5); margin-top: 25px;
+  max-width: 500px; margin-left: auto; margin-right: auto;
+}
+#dadosCliente label { display: block; margin-top: 12px; font-weight: bold; color: #e0e0e0; font-size: 14px; }
+#dadosCliente input {
+  width: 100%; padding: 10px; margin-top: 5px; border: none; border-radius: 6px;
+  background: #3a3a3a; color: #fff; font-size: 14px; box-sizing: border-box;
+}
+#dadosCliente input:focus { outline: 2px solid #800080; }
+
+#enviarDados {
+  width: 100%; margin-top: 20px; padding: 12px; background-color: #800080;
+  border: none; border-radius: 8px; color: #fff; font-weight: bold;
+  font-size: 16px; cursor: pointer; transition: background 0.3s;
+}
+#enviarDados:hover { background-color: #5a005a; }
+
+#msgEnvio { text-align: center; margin-top: 10px; font-weight: bold; }
+
+/* Loading & Button Animation */
+.button-container { text-align: center; margin: 2.5vh 0; position: relative; }
+.button-pay {
+  background-color: #5CE65C; color: #fff; text-decoration: none;
+  padding: 1.2vh 3vw; border-radius: 0.5em; font-size: 1.8vh;
+  display: inline-block; font-weight: bold; transition: all 0.3s;
+  animation: pulse 1.5s infinite; position: relative;
+}
+.button-pay:hover { background-color: #3cbf3c; }
+
+@keyframes pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(92, 230, 92, 0.7); }
+  50% { transform: scale(1.05); box-shadow: 0 0 1.5vh rgba(92, 230, 92, 0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(92, 230, 92, 0.7); }
+}
+
+/* Client Badges */
+.badge {
+  display: inline-block; background-color: #3a3a3a; color: #c084f5;
+  font-size: 1.6vh; padding: 0.5vh 1vw; border-radius: 0.4em;
+  margin-right: 0.7vw; margin-bottom: 0.7vh;
+}
+.icon { color: #c084f5; margin-right: 0.5em; }
+
+/* Client Loader */
+#loader-intermedio {
+  display: none; text-align: center; padding: 50px 0; animation: fadeIn 0.5s;
+}
+#loader-intermedio i { font-size: 40px; color: #00bfa5; margin-bottom: 15px; }
+.fa-spin { animation: fa-spin 1s infinite linear; }
+
+.footer {
+  text-align: center; font-size: 1.4vh; color: #aaa;
+  padding: 2vh 1%; background-color: #1e1e1e; margin-top: 20px;
+}
