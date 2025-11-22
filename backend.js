@@ -1,67 +1,47 @@
 // ======================================================
 // ⚙️ CONFIGURAÇÃO GERAL (ZERO-BUG)
 // ======================================================
-// Mantenha o ID da sua planilha atual
 const SPREADSHEET_ID = "1AbEt9yK3i6aYVUQ6RU9wbZKn24bFJOn9if3eGdX1Y8U";
-const SHEET_NAME = "BD";
+const SHEET_BD = "BD";       // Aba de Pedidos Admin
+const SHEET_CLIENTE = "Cliente"; // Aba de Dados do Cliente (Crie esta aba na planilha!)
 
-// 🔔 COLOQUE SEU E-MAIL AQUI PARA RECEBER O AVISO
-const EMAIL_NOTIFICACAO = "seu_email@gmail.com"; 
+// 🔔 SEU E-MAIL
+const EMAIL_NOTIFICACAO = "fxllen.gh0st@gmail.com,ale.gomessilva97@gmail.com"; 
 
 // ======================================================
-// 🚦 ROTEAMENTO PRINCIPAL
+// 🚦 ROTEAMENTO
 // ======================================================
-
-function doGet(e) {
-  // Rota GET padrão (Buscar dados do pedido ou último link)
-  return handleRequest(e, "GET");
-}
+function doGet(e) { return handleRequest(e, "GET"); }
 
 function doPost(e) {
-  // 1. Verifica se é um Webhook da Invictus (identificado pelo parâmetro ?type=webhook na URL)
   if (e.parameter && e.parameter.type === 'webhook') {
     return handleWebhook(e);
   }
-
-  // 2. Se não for webhook, é o seu site criando um novo pedido (Fluxo normal)
   return handleRequest(e, "POST");
 }
 
 // ======================================================
-// 🤖 MÓDULO 1: HANDLER DO WEBHOOK (NOVO)
+// 🤖 WEBHOOK (ATUALIZA ABA CLIENTE)
 // ======================================================
 function handleWebhook(e) {
   const lock = LockService.getScriptLock();
-  // Tenta travar por 10s para evitar conflitos de escrita simultânea
-  if (!lock.tryLock(10000)) {
-    return responseJson({ error: "Server busy" });
-  }
+  if (!lock.tryLock(10000)) return responseJson({ error: "Busy" });
 
   try {
-    // O payload da Invictus vem no corpo da requisição
     const data = JSON.parse(e.postData.contents);
-    
-    // Verificação de segurança básica: status do pagamento
     const status = data.status ? data.status.toLowerCase() : "";
     
-    // Se o pagamento foi aprovado ('paid' ou 'succeeded')
     if (status === 'paid' || status === 'succeeded') {
+      const valor = (data.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const email = data.customer ? data.customer.email : "";
+      const nome = data.customer ? data.customer.name : "Cliente";
+
+      sendEmailNotification(nome, valor, email);
       
-      // Extração de dados para o e-mail
-      const valorReais = (data.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-      const clienteEmail = data.customer ? data.customer.email : "Email não informado";
-      const clienteNome = data.customer ? data.customer.name : "Cliente";
-
-      // 1. Enviar E-mail de Notificação para você
-      sendEmailNotification(clienteNome, valorReais, clienteEmail);
-
-      // 2. Atualizar o Status na Planilha para "PAGO"
-      updateSheetStatus(clienteEmail, "PAGO");
+      // ATENÇÃO: Agora atualiza na aba CLIENTE
+      updateSheetStatus(email, "PAGO", SHEET_CLIENTE);
     }
-
-    // Retorna 200 OK para a Invictus não ficar tentando reenviar
     return responseJson({ received: true });
-
   } catch (error) {
     return responseJson({ error: error.message });
   } finally {
@@ -69,70 +49,40 @@ function handleWebhook(e) {
   }
 }
 
-// Sub-função: Enviar E-mail
-function sendEmailNotification(nome, valor, emailCliente) {
-  if (!EMAIL_NOTIFICACAO || EMAIL_NOTIFICACAO.includes("@gmail.com") === false) return; // Evita erro se não configurado
-
-  const assunto = `✅ PIX RECEBIDO: ${valor}`;
-  const corpo = `
-    🤑 VENDA APROVADA!
-    
-    👤 Cliente: ${nome}
-    💰 Valor: ${valor}
-    📧 Email: ${emailCliente}
-    
-    O status na planilha foi atualizado automaticamente.
-  `;
-  
+function sendEmailNotification(nome, valor, email) {
+  if (!EMAIL_NOTIFICACAO.includes("@")) return;
   MailApp.sendEmail({
     to: EMAIL_NOTIFICACAO,
-    subject: assunto,
-    body: corpo
+    subject: `✅ PIX APROVADO: ${valor}`,
+    body: `Venda confirmada!\nCliente: ${nome}\nValor: ${valor}\nEmail: ${email}`
   });
 }
 
-// Sub-função: Atualizar Planilha
-function updateSheetStatus(emailAlvo, novoStatus) {
+function updateSheetStatus(emailAlvo, novoStatus, nomeAba) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  
+  const sheet = ss.getSheetByName(nomeAba);
   if (!sheet) return;
 
   const data = sheet.getDataRange().getValues();
-  const headers = data[0]; // Primeira linha = Cabeçalho
-
-  // Encontra as colunas
+  const headers = data[0];
   const emailIndex = headers.findIndex(h => h.toString().trim().toLowerCase() === "email");
-  let statusIndex = headers.findIndex(h => h.toString().trim().toLowerCase() === "status");
 
-  if (emailIndex === -1) return; // Se não tiver coluna email, não dá pra achar o pedido
+  if (emailIndex === -1) return;
 
-  // Se não existir coluna Status, tenta usar a última ou cria uma lógica de fallback
-  // Aqui, vamos assumir que se não achar, vamos pintar a linha de verde como sinal visual
-  
-  // Loop reverso: Procura do último pedido para o primeiro (pega o mais recente desse email)
+  // Procura do fim para o começo (último registro desse email)
   for (let i = data.length - 1; i > 0; i--) {
-    const linhaEmail = String(data[i][emailIndex]).trim().toLowerCase();
-    const alvoEmail = String(emailAlvo).trim().toLowerCase();
-
-    if (linhaEmail === alvoEmail) {
-      const rowNumber = i + 1;
-      
-      if (statusIndex > -1) {
-        // Atualiza o texto da coluna Status
-        sheet.getRange(rowNumber, statusIndex + 1).setValue(novoStatus);
-      }
-      
-      // Confirmação visual: Pinta a linha inteira de verde claro
-      sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).setBackground('#d1e7dd');
-      
-      break; // Para após atualizar o mais recente
+    if (String(data[i][emailIndex]).trim().toLowerCase() === String(emailAlvo).trim().toLowerCase()) {
+      // Atualiza a ÚLTIMA coluna da linha encontrada com o status
+      const lastCol = sheet.getLastColumn(); 
+      sheet.getRange(i + 1, lastCol).setValue(novoStatus);
+      sheet.getRange(i + 1, 1, 1, lastCol).setBackground('#d1e7dd'); // Pinta de verde
+      break;
     }
   }
 }
 
 // ======================================================
-// 📦 MÓDULO 2: SISTEMA DE PEDIDOS (SEU CÓDIGO ANTIGO)
+// 📦 SISTEMA DE DADOS (BD E CLIENTE)
 // ======================================================
 function handleRequest(e, method) {
   const params = e.parameter || {};
@@ -141,95 +91,73 @@ function handleRequest(e, method) {
 
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(SHEET_NAME);
 
-    if (!sheet) {
-      throw new Error(`Aba ${SHEET_NAME} não encontrada.`);
-    }
-
-    // --- Rota GET (Ler dados) ---
-    if (method === "GET") {
-      // Ação: Buscar último link gerado
-      if (params.action && params.action === "lastLink") {
-        const lastRow = sheet.getLastRow();
-        if (lastRow <= 1) return responseJson({ status: "success", result: null });
-
-        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        const colLinkIndex = headers.findIndex(h => {
-          const header = h.toString().trim().toLowerCase();
-          return header === "linkpagamento" || header === "link" || header === "checkout";
-        });
-
-        if (colLinkIndex === -1) return responseJson({ status: "success", result: null });
-
-        const lastLink = sheet.getRange(lastRow, colLinkIndex + 1).getValue();
-        return responseJson({ status: "success", result: lastLink });
-      }
-
-      // Ação: Buscar pedido por ID
-      const id = params.id;
-      if (!id) throw new Error("Parâmetro 'id' ausente na URL.");
-
-      const allData = sheet.getDataRange().getValues();
-      const headers = allData.shift();
-      const idIndex = headers.findIndex(h => h.toString().trim().toLowerCase() === "id");
-
-      if (idIndex === -1) throw new Error("Coluna 'id' não encontrada.");
-
-      const row = allData.find(r => String(r[idIndex]) === String(id));
-      if (!row) throw new Error(`Pedido não encontrado.`);
-
-      const result = {};
-      for (let i = 0; i < headers.length; i++) {
-        result[headers[i]] = row[i];
-      }
-
-      return responseJson({ status: "success", data: result });
-    }
-
-    // --- Rota POST (Salvar novo pedido) ---
+    // --- POST (SALVAR) ---
     if (method === "POST") {
-      let postData;
+      let postData = params;
       if (e.postData && e.postData.contents) {
-        try { postData = JSON.parse(e.postData.contents); } 
-        catch (err) { postData = params; }
-      } else {
-        postData = params;
+        try { postData = JSON.parse(e.postData.contents); } catch (e) {}
       }
 
-      if (!postData || Object.keys(postData).length === 0) {
-        return responseJson({ status: "error", message: "Nenhum dado recebido." });
-      }
+      // 1. Decide em qual aba salvar
+      const targetSheetName = (postData.action === 'salvar_cliente') ? SHEET_CLIENTE : SHEET_BD;
+      const sheet = ss.getSheetByName(targetSheetName);
+      
+      if (!sheet) throw new Error(`Aba '${targetSheetName}' não existe.`);
 
-      const headersRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-      const headers = headersRange.getValues()[0];
+      // 2. Mapeamento Dinâmico de Colunas
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
       let generatedId = null;
 
       const newRow = headers.map(header => {
-        const key = header.toString().trim();
-        // Gera ID automático se necessário
+        const key = header.toString().trim(); // A chave deve bater com o "name" do input HTML
+        
+        // Se for ID e estiver vazio no payload, gera um novo. Se vier no payload (caso do cliente), mantém.
         if (key.toLowerCase() === 'id') {
-           if (postData[key]) return postData[key];
+           if (postData[key]) return postData[key]; // Mantém o ID que veio do front (relacionamento)
            generatedId = Utilities.getUuid();
            return generatedId;
         }
-        // Define status inicial como 'Pendente' se a coluna existir
-        if (key.toLowerCase() === 'status') {
-            return 'Pendente';
-        }
+        // Status padrão
+        if (key.toLowerCase() === 'status') return 'Aguardando Pagamento';
+        
+        // Retorna o dado ou vazio
         return postData[key] !== undefined ? postData[key] : ""; 
       });
 
       sheet.appendRow(newRow);
 
-      return responseJson({
-        status: "success",
-        message: "Dados salvos com sucesso.",
-        savedId: generatedId || postData['id']
-      });
+      return responseJson({ status: "success", savedId: generatedId || postData['id'] });
     }
 
-    throw new Error(`Método ${method} não suportado.`);
+    // --- GET (LEITURA - SEMPRE NA BD PRINCIPAL) ---
+    if (method === "GET") {
+      const sheet = ss.getSheetByName(SHEET_BD); 
+      
+      // Busca último link
+      if (params.action === "lastLink") {
+        const lastRow = sheet.getLastRow();
+        if (lastRow <= 1) return responseJson({ status: "success", result: null });
+        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        const colIndex = headers.findIndex(h => h.toString().toLowerCase().includes("link"));
+        return responseJson({ status: "success", result: sheet.getRange(lastRow, colIndex+1).getValue() });
+      }
+
+      // Busca dados pelo ID
+      const id = params.id;
+      if (!id) throw new Error("ID ausente.");
+      
+      const data = sheet.getDataRange().getValues();
+      const headers = data.shift();
+      const idIndex = headers.findIndex(h => h.toString().toLowerCase() === "id");
+      const row = data.find(r => String(r[idIndex]) === String(id));
+      
+      if (!row) throw new Error("Pedido não encontrado.");
+      
+      const result = {};
+      headers.forEach((h, i) => result[h] = row[i]);
+      return responseJson({ status: "success", data: result });
+    }
 
   } catch (error) {
     return responseJson({ status: "error", message: error.message });
@@ -238,8 +166,6 @@ function handleRequest(e, method) {
   }
 }
 
-// Função utilitária para responder JSON
 function responseJson(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
