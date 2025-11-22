@@ -1,13 +1,13 @@
 // ========================================================
 // ⚙️ CONFIGURAÇÃO CENTRAL
 // ========================================================
-// Substitua pela URL do seu novo Backend unificado (o que acabamos de criar)
+// Substitua pela URL do seu novo Backend unificado
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbw0tZ66QIzYiGsD2XNyX9I3dv5r5zfAqPDywPTrRXYJsNsbeJS9Mlo_GdIdynl9p8EwqQ/exec'; 
 const BASE_URL = window.location.href.split('?')[0]; 
 const ADMIN_PIN = "0007"; 
 
 // Configuração da API Invictus Pay
-// ⚠️ NOTA DE SEGURANÇA: Idealmente, esta chamada deve ir para o Backend no futuro.
+// ⚠️ NOTA DE SEGURANÇA: A chave está exposta aqui. Futuramente mover para Backend.
 const API_INVICTUS_TOKEN = "wsxiP0Dydmf2TWqjOn1iZk9CfqwxdZBg8w5eQVaTLDWHnTjyvuGAqPBkAiGU";
 const API_INVICTUS_ENDPOINT = "https://api.invictuspay.app.br/api";
 const OFFER_HASH_DEFAULT = "png8aj6v6p"; 
@@ -152,14 +152,28 @@ function initAdminApp() {
 async function initClientApp(id) {
   const containerArea = document.getElementById('client-content-area');
 
-  // Utilitários de Formatação
+  // 🔥 FIX CORRIGIDO: Formatação visual robusta (Aceita 7.50 e 7,50)
   const formatValueForClient = (value) => {
       if (!value) return ''; 
+      
+      // 1. Se já for número (ex: 7.5), formata direto
+      if (typeof value === 'number') {
+          return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      }
+
       let valueStr = String(value).trim();
       valueStr = valueStr.replace(/R\$\s*/g, '');
+      
+      // Retorna textos especiais
       if (valueStr.match(/gr[aá]tis|inclusa|horas|vendas|avaliação|taxa de/i)) return valueStr;
-      let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.');
-      let number = parseFloat(numericStr);
+
+      // 2. Se tiver vírgula, assume formato BR (1.000,00) -> remove ponto, troca vírgula
+      if (valueStr.includes(',')) {
+          valueStr = valueStr.replace(/\./g, '').replace(',', '.');
+      }
+      // Se NÃO tiver vírgula (ex: "7.50"), mantém o ponto para o parseFloat
+
+      let number = parseFloat(valueStr);
       return !isNaN(number) ? number.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : valueStr;
   }
 
@@ -170,11 +184,14 @@ async function initClientApp(id) {
       return isCurrency ? `R$ ${formatted}` : formatted;
   }
 
+  // Conversor seguro para API (centavos)
   const parseMoneyToCents = (val) => {
     if (!val) return 0;
     if (typeof val === 'number') return Math.round(val * 100);
     let valStr = String(val).trim();
+    // Se não tem vírgula nem R$, assume formato float (ex: "7.50")
     if (!valStr.includes(',') && !valStr.includes('R$')) return Math.round(parseFloat(valStr) * 100);
+    // Se tem formatação BR, limpa tudo
     const clean = valStr.replace(/\D/g, '');
     return parseInt(clean, 10);
   };
@@ -350,7 +367,7 @@ async function initClientApp(id) {
               body: JSON.stringify(sheetPayload) 
           });
       } catch (sheetErr) {
-          console.error("Aviso: Não foi possível salvar na planilha, seguindo para pagamento.", sheetErr);
+          console.error("Aviso: Falha ao salvar backup na planilha.", sheetErr);
       }
 
       // 💸 2. Gerar PIX na Invictus
