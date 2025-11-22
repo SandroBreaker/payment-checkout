@@ -3,35 +3,35 @@
 // ========================================================
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbw0tZ66QIzYiGsD2XNyX9I3dv5r5zfAqPDywPTrRXYJsNsbeJS9Mlo_GdIdynl9p8EwqQ/exec'; 
 const BASE_URL = window.location.href.split('?')[0]; 
+const ADMIN_PIN = "0007"; 
 
-// 🔐 CONFIGURAÇÃO DE SEGURANÇA
-const ADMIN_PIN = "0007"; // <--- SEU PIN AQUI
+// Configuração da API Invictus Pay
+const API_INVICTUS_TOKEN = "wsxiP0Dydmf2TWqjOn1iZk9CfqwxdZBg8w5eQVaTLDWHnTjyvuGAqPBkAiGU";
+const API_INVICTUS_ENDPOINT = "https://api.invictuspay.app.br/api";
+// Hash fixo ou dinâmico do produto na Invictus (Use um genérico se o valor for variável no backend deles, ou o hash real)
+const OFFER_HASH_DEFAULT = "png8aj6v6p"; 
 
 // ========================================================
 // 🚦 ROTEADOR E AUTH
 // ========================================================
 document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
-
   const viewLogin = document.getElementById('login-view');
   const viewAdmin = document.getElementById('admin-view');
   const viewClient = document.getElementById('client-view');
 
-  // 1. Rota Cliente (Prioridade Máxima)
   if (params.has('id')) {
     showView(viewClient);
     initClientApp(params.get('id'));
     return;
   }
 
-  // 2. Verifica Sessão Admin Existente
   if (localStorage.getItem('admin_session_active') === 'true') {
     showView(viewAdmin);
     initAdminApp();
     return;
   }
 
-  // 3. Rota Padrão (Tela de Login)
   showView(viewLogin);
   initLoginApp(viewLogin, viewAdmin);
 });
@@ -47,39 +47,30 @@ function logoutAdmin() {
 }
 
 // ========================================================
-// 🔐 LÓGICA DE LOGIN
+// 🔐 LOGIN & ADMIN LOGIC
 // ========================================================
 function initLoginApp(viewLogin, viewAdmin) {
   const loginForm = document.getElementById('loginForm');
   const pinInput = document.getElementById('adminPin');
   const errorMsg = document.getElementById('loginError');
 
-  // Foco automático no input
   pinInput.focus();
 
   loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const enteredPin = pinInput.value;
-
-    if (enteredPin === ADMIN_PIN) {
-      // Sucesso
+    if (pinInput.value === ADMIN_PIN) {
       localStorage.setItem('admin_session_active', 'true');
       errorMsg.textContent = "";
       showView(viewAdmin);
       initAdminApp();
     } else {
-      // Erro
       errorMsg.textContent = "Senha incorreta";
       pinInput.value = "";
-      pinInput.classList.add('error-shake');
-      setTimeout(() => pinInput.classList.remove('error-shake'), 500);
+      pinInput.focus();
     }
   });
 }
 
-// ========================================================
-// 🏢 LÓGICA ADMIN (Gerador)
-// ========================================================
 function initAdminApp() {
   const form = document.getElementById('adminForm');
   const modal = document.getElementById('modalSuccess');
@@ -87,20 +78,17 @@ function initAdminApp() {
   const btnSalvar = document.getElementById('btnSalvar');
   const btnCopy = document.getElementById('btnCopy');
   const btnView = document.getElementById('btnView');
-  const inputLinkPagamento = document.getElementById('linkPagamento');
   const toggleHeader = document.getElementById('preset-toggle');
   const fieldsContainer = document.getElementById('preset-fields-container');
   const toggleIcon = document.getElementById('toggle-icon');
   const moneyInputs = document.querySelectorAll('.money');
 
-  // Toggle Preset Fields
   toggleHeader.addEventListener('click', () => {
       const isExpanded = fieldsContainer.classList.toggle('expanded');
       toggleIcon.classList.toggle('rotated');
       fieldsContainer.style.maxHeight = isExpanded ? fieldsContainer.scrollHeight + "px" : "0";
   });
 
-  // Máscara Moeda
   const formatMoney = (value) => {
     value = value.replace(/\D/g, "");
     const amount = parseFloat(value) / 100;
@@ -109,56 +97,29 @@ function initAdminApp() {
 
   moneyInputs.forEach(input => {
     input.addEventListener('input', (e) => e.target.value = formatMoney(e.target.value));
-    if(input.value) {
-      const cleanVal = input.value.replace(/\D/g, "");
-      if(cleanVal) input.value = formatMoney(cleanVal);
-    }
   });
 
-  // Carregar Último Link
-  (async () => {
-    inputLinkPagamento.disabled = true;
-    try {
-      const res = await fetch(`${BACKEND_URL}?action=lastLink`);
-      const json = await res.json();
-      if(json.status === 'success' && json.result) {
-        inputLinkPagamento.value = json.result;
-      } else {
-        inputLinkPagamento.placeholder = "Insira o link manualmente";
-      }
-    } catch(e) {
-      console.error("Erro lastLink", e);
-    } finally {
-      inputLinkPagamento.disabled = false;
-    }
-  })();
-
-  // Enviar Formulário
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    btnSalvar.textContent = "Processando...";
+    btnSalvar.textContent = "Gerando...";
     btnSalvar.disabled = true;
 
     const data = {};
     new FormData(form).forEach((v, k) => data[k] = v);
-    data.linkPagamento = inputLinkPagamento.value; 
+    
+    // O Link de pagamento na planilha será o próprio link da plataforma
+    data.linkPagamento = BASE_URL; 
 
     try {
       const res = await fetch(BACKEND_URL, {
         method: 'POST',
-        redirect: 'follow', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(data)
       });
-
       const json = await res.json();
 
       if (json.status === 'success') {
         const idGerado = json.savedId || json.id; 
-        if (!idGerado) throw new Error("ID não retornado.");
-
         const linkPronto = `${BASE_URL}?id=${idGerado}`;
-
         linkDisplay.textContent = linkPronto;
         btnView.href = linkPronto; 
         modal.classList.add('active');
@@ -168,186 +129,262 @@ function initAdminApp() {
     } catch (err) {
       alert('Erro de conexão: ' + err.message);
     } finally {
-      btnSalvar.textContent = "Gerar Link do Cliente";
+      btnSalvar.textContent = "Gerar Link de Pagamento";
       btnSalvar.disabled = false;
     }
   });
 
   btnCopy.addEventListener('click', () => {
     navigator.clipboard.writeText(linkDisplay.textContent);
-    const originalHTML = btnCopy.innerHTML;
-    btnCopy.innerHTML = `<i class="fa-solid fa-check"></i> Copiado!`;
-    btnCopy.style.background = "#4CAF50";
-    setTimeout(() => {
-      btnCopy.innerHTML = originalHTML;
-      btnCopy.style.background = "#fff";
-    }, 2000);
+    btnCopy.textContent = "Copiado!";
+    setTimeout(() => btnCopy.innerHTML = '<i class="fa-regular fa-copy"></i> Copiar', 2000);
   });
 }
 
 // ========================================================
-// 🛍️ LÓGICA CLIENTE (ATUALIZADA & SEGURA)
+// 🛍️ CLIENT CHECKOUT LOGIC (INVICTUS INTEGRATION)
 // ========================================================
 async function initClientApp(id) {
   const containerArea = document.getElementById('client-content-area');
 
-  const formatValueForClient = (value) => {
-      if (!value) return ''; 
-      let valueStr = String(value).trim();
-      valueStr = valueStr.replace(/R\$\s*/g, '');
-      if (valueStr.match(/gr[aá]tis|inclusa|horas|vendas|avaliação|taxa de/i)) return valueStr;
-      let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.');
-      let number = parseFloat(numericStr);
-      return !isNaN(number) ? number.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : valueStr;
-  }
-
-  const getDisplayValue = (data, isCurrency, defaultText) => {
-      const formatted = formatValueForClient(data);
-      if (formatted === '') return isCurrency ? `R$ ${defaultText}` : defaultText;
-      if (isCurrency && (formatted.toLowerCase().includes('grátis') || formatted.toLowerCase().includes('inclusa'))) return formatted;
-      return isCurrency ? `R$ ${formatted}` : formatted;
-  }
-
-  const renderError = (msg) => {
-    containerArea.innerHTML = `
-      <div class="client-container" style="text-align:center; padding:40px;">
-        <h2 style="color:#ff4d4d;">Atenção</h2>
-        <p style="color:#ccc;">${msg}</p>
-      </div>`;
-  }
-
-  const criarElemento = (tag, attrs = {}, inner = '') => {
-    const el = document.createElement(tag);
-    Object.entries(attrs).forEach(([key, value]) => {
-      if (key === 'class') el.className = value;
-      else if (key === 'id') el.id = value;
-      else if (key === 'href') el.href = value;
-      else el.setAttribute(key, value);
-    });
-    if (typeof inner === 'string') el.innerHTML = inner;
-    else if (inner instanceof Node) el.appendChild(inner);
-    return el;
-  }
+  // Helpers
+  const formatCurrency = (val) => val ? val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00';
+  
+  // Parser de moeda (R$ 1.000,00 -> 100000 centavos)
+  const parseMoneyToCents = (valStr) => {
+    if(!valStr) return 0;
+    // Remove tudo que não é digito
+    const clean = String(valStr).replace(/\D/g, '');
+    return parseInt(clean, 10); 
+  };
 
   try {
+    // 1. Busca dados do Google Sheets
     const response = await fetch(`${BACKEND_URL}?id=${id}`);
     const json = await response.json();
 
     if (json.status !== 'success') {
-      renderError(json.message || 'Pedido não encontrado.');
+      containerArea.innerHTML = `<div style="text-align:center; padding:40px; color:#ff5252;"><h2>Pedido não encontrado.</h2></div>`;
       return;
     }
 
-    const dadosBrutos = json.data;
     const dados = {};
-    Object.keys(dadosBrutos).forEach(key => dados[key.toLowerCase()] = dadosBrutos[key]);
-
-    // Normalização de chaves
-    dados.valor = dados.valor || dados['valor total'] || '';
-    dados.taxa = dados.taxa || dados['taxa de serviço'] || '';
-    dados.frete = dados.frete || dados['custo frete'] || '';
-    dados.tarifa = dados.tarifa || dados['tarifa plataforma'] || dados['tarifa olx pay'] || '';
-    dados.linkpagamento = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
-
+    // Normaliza chaves para lowercase
+    Object.keys(json.data).forEach(key => dados[key.toLowerCase()] = json.data[key]);
+    
+    // Mapeia os campos importantes da planilha
+    // Nota: 'taxa' na planilha é o valor real que será cobrado no checkout
+    const valorCobrancaStr = dados.taxa || dados['taxa de serviço'] || "R$ 0,00";
+    const valorVisualStr = dados.valor || dados['valor total'] || "R$ 1.000,00";
+    const nomeComprador = dados.comprador || "";
+    
+    const valorEmCentavos = parseMoneyToCents(valorCobrancaStr);
+    
+    // 2. Monta o HTML do Checkout
     containerArea.innerHTML = '';
+    
+    const wrapper = document.createElement('div');
+    wrapper.className = 'client-container';
+    
+    wrapper.innerHTML = `
+        <div class="header-image"></div>
+        <div class="header-title">
+            <h2>Pagamento Seguro</h2>
+        </div>
+        <div class="content">
+            <div class="summary-box">
+                <div>
+                    <div class="summary-text">Pagamento referente a taxa de serviço</div>
+                    <div class="summary-text" style="font-size:11px; opacity:0.7">Produto: ${valorVisualStr} (Custódia)</div>
+                </div>
+                <div class="summary-price">${valorCobrancaStr}</div>
+            </div>
 
-    const container = criarElemento('div', { class: 'client-container' });
-    const imgHeader = criarElemento('div', { class: 'header-image' });
-    const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura' }); 
-    const content = criarElemento('div', { class: 'content' });
+            <form id="checkoutForm">
+                <h3 class="checkout-title"><i class="fa-solid fa-user-shield"></i> Dados do Pagador</h3>
+                
+                <div class="checkout-grid">
+                    <div class="form-group full-width">
+                        <label>Nome Completo</label>
+                        <input type="text" name="name" required value="${nomeComprador}">
+                    </div>
+                    <div class="form-group">
+                        <label>E-mail</label>
+                        <input type="email" name="email" required placeholder="seu@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>CPF</label>
+                        <input type="text" name="document" required placeholder="000.000.000-00" maxlength="14">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Telefone (WhatsApp)</label>
+                        <input type="text" name="phone_number" required placeholder="(00) 90000-0000">
+                    </div>
+                </div>
 
-    const prazo = dados.prazo || '15 minutos';
-    const linkFinal = dados.linkpagamento;
+                <h3 class="checkout-title"><i class="fa-solid fa-location-dot"></i> Endereço de Faturamento</h3>
+                
+                <div class="checkout-grid">
+                    <div class="form-group">
+                        <label>CEP</label>
+                        <input type="text" name="zip_code" required placeholder="00000-000">
+                    </div>
+                    <div class="form-group">
+                        <label>Estado (UF)</label>
+                        <input type="text" name="state" required maxlength="2" placeholder="SP">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Rua</label>
+                        <input type="text" name="street_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Número</label>
+                        <input type="text" name="number" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Bairro</label>
+                        <input type="text" name="neighborhood" required>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Cidade</label>
+                        <input type="text" name="city" required>
+                    </div>
+                </div>
 
-    // ------------------------------------------------------
-    // INJEÇÃO DO CONTEÚDO ATUALIZADO
-    // ------------------------------------------------------
-    content.innerHTML = `
-      <div style="text-align: center; margin-bottom: 20px;">
-          <h2 style="color: #00bfa5; margin: 0;">🎉 Venda Confirmada!</h2>
-          <p style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Seu anúncio encontrou um comprador.</p>
-      </div>
-
-      <div style="background: rgba(0, 191, 165, 0.1); border-left: 4px solid #00bfa5; padding: 15px; border-radius: 4px; margin-bottom: 20px; text-align: left;">
-          <p style="margin: 0; font-size: 14px; line-height: 1.5;">
-              Para garantir a segurança da transação, o saldo total está em <strong>Custódia Temporária</strong>.
-              <br><br>
-              <strong>Ação Necessária:</strong> Regularize a taxa de <span class="highlight">${getDisplayValue(dados.taxa, true, '---')}</span>.
-              <br>
-              <span style="font-size: 12px; opacity: 0.8;">ℹ️ Fique tranquilo: este valor é <strong>100% reembolsável</strong> e será creditado automaticamente junto com o valor da venda em até <strong>${prazo}</strong> após a confirmação.</span>
-          </p>
-      </div>
-      
-      <h3 style="border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 30px; color: #fff; font-size: 16px;">Resumo do Pedido</h3>
-      <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span>${dados.comprador || '---'}</span></p>
-      <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor da Venda:</strong> <span>${getDisplayValue(dados.valor, true, '---')}</span></p>
-      <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>${getDisplayValue(dados.frete, true, 'Grátis')}</span></p>
-      <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa de Serviço:</strong> <span>${getDisplayValue(dados.tarifa, true, 'Inclusa')}</span></p>
-      ${dados.cpf ? `<p><i class="fa-solid fa-id-card icon"></i> <strong>CPF:</strong> <span>${dados.cpf}</span></p>` : ''}
-      ${dados.cartao ? `<p><i class="fa-solid fa-credit-card icon"></i> <strong>Método:</strong> <span>${dados.cartao}</span></p>` : ''}
-
-      <div style="margin-top:15px">
-        ${dados.vendas ? `<span class="badge">${dados.vendas}</span>` : ''}
-        ${dados.atendimento ? `<span class="badge">${dados.atendimento}</span>` : ''}
-        ${dados.entrega ? `<span class="badge">${dados.entrega}</span>` : ''}
-      </div>
-
-      <h3 style="border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 30px; color: #fff; font-size: 16px;">💬 Validação de Segurança</h3>
-      <p style="font-size: 13px; opacity: 0.7;">Preencha os dados abaixo para autorizar o recebimento e liberar o link da taxa.</p>
+                <button type="submit" id="btnPay" class="btn-pay">
+                    <i class="fa-brands fa-pix"></i> PAGAR ${valorCobrancaStr}
+                </button>
+            </form>
+        </div>
+        <div class="footer" style="text-align:center; padding:15px; color:#555; font-size:12px;">
+            &copy; 2025 Ambiente Seguro. Seus dados estão protegidos.
+        </div>
     `;
 
-    const form = criarElemento('form', { id: 'dadosCliente' });
-    ['nome', 'banco', 'pix', 'telefone'].forEach(campo => {
-      const label = criarElemento('label', { for: campo }, campo.charAt(0).toUpperCase() + campo.slice(1));
-      const input = criarElemento('input', { type: 'text', id: campo, name: campo, required: true });
-      form.append(label, input);
-    });
+    containerArea.appendChild(wrapper);
 
-    const btnEnviar = criarElemento('button', { id: 'enviarDados', type: 'submit' }, 'Confirmar Dados para Recebimento');
-    const msgEnvio = criarElemento('p', { id: 'msgEnvio' });
-    form.append(btnEnviar, msgEnvio);
-    content.appendChild(form);
+    // 3. Lógica do Formulário
+    const form = document.getElementById('checkoutForm');
+    const btnPay = document.getElementById('btnPay');
 
-    const loaderDiv = criarElemento('div', { id: 'loader-intermedio' });
-    loaderDiv.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i><p>Gerando link seguro...</p>`;
-    content.appendChild(loaderDiv);
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Captura dados
+        const formData = new FormData(form);
+        const customerData = {};
+        formData.forEach((value, key) => customerData[key] = value);
 
-    const btnPagamento = criarElemento('a', { id: 'btn-pagamento', class: 'button-pay hidden', href: linkFinal }, 'Seguir para a liberação');
-    const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
-    content.appendChild(btnContainer);
-
-    container.append(imgHeader, title, content);
-    container.appendChild(criarElemento('div', { class: 'footer' }, '&copy; 2025 Plataforma Segura. Todos os direitos reservados.'));
-    containerArea.appendChild(container);
-
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      btnEnviar.innerHTML = `<div style="display:flex;justify-content:center;gap:10px"><i class="fa-solid fa-circle-notch fa-spin"></i> Validando...</div>`;
-      btnEnviar.disabled = true;
-      btnEnviar.style.background = "#555";
-
-      setTimeout(() => {
-        msgEnvio.textContent = "✅ Dados validados! Pagamento liberado.";
-        msgEnvio.style.color = "#00bfa5";
-        form.style.display = 'none';
-        loaderDiv.style.display = 'block';
-
-        btnPagamento.classList.remove('hidden');
-        btnPagamento.classList.add('visible');
-
-        const endAnimation = (evt) => {
-           if (evt.propertyName === 'opacity' || evt.propertyName === 'transform') {
-             loaderDiv.style.display = 'none';
-             btnPagamento.removeEventListener('transitionend', endAnimation);
-           }
+        // Payload para API Invictus
+        const payload = {
+            "amount": valorEmCentavos, 
+            "offer_hash": OFFER_HASH_DEFAULT, 
+            "payment_method": "pix", 
+            "customer": customerData,
+            "cart": [
+                {
+                    "product_hash": OFFER_HASH_DEFAULT,
+                    "title": "Taxa de Serviço - Plataforma Segura",
+                    "price": valorEmCentavos,
+                    "quantity": 1,
+                    "operation_type": 1, 
+                    "tangible": false
+                }
+            ],
+            "installments": 1,
+            "expire_in_days": 1,
+            "transaction_origin": "api"
         };
-        btnPagamento.addEventListener('transitionend', endAnimation);
-        btnContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 1500);
+
+        // Executa API
+        await executeInvictusApi('POST', '/public/v1/transactions', payload, btnPay);
     });
 
   } catch (err) {
     console.error(err);
-    renderError('Erro de conexão. Verifique sua internet.');
+    containerArea.innerHTML = `<p style="color:red; text-align:center">Erro ao carregar pedido.</p>`;
   }
+}
+
+// ========================================================
+// 📡 API & MODAL HANDLER
+// ========================================================
+async function executeInvictusApi(method, path, payload, button) {
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Processando...`;
+
+    try {
+        const response = await fetch(`${API_INVICTUS_ENDPOINT}${path}?api_token=${API_INVICTUS_TOKEN}`, {
+            method: method,
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            if (data.payment_method === 'pix' && data.pix && data.pix.pix_qr_code) {
+                showPixModal(data);
+            } else {
+                alert("Pedido criado, mas sem dados de PIX retornados.");
+            }
+        } else {
+            // Tratamento de erro básico
+            const msg = data.errors ? Object.values(data.errors).flat().join('\n') : (data.message || "Erro na transação");
+            alert("Erro no pagamento:\n" + msg);
+        }
+
+    } catch (error) {
+        console.error(error);
+        alert("Erro de comunicação com o gateway.");
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+function showPixModal(data) {
+    const modal = document.getElementById('pixModal');
+    const amountEl = document.getElementById('modalAmount');
+    const hashEl = document.getElementById('modalHash');
+    const textarea = document.getElementById('pixCodeTextarea');
+    const qrContainer = document.getElementById('qrCodeContainer');
+    const qrImage = document.getElementById('qrCodeImage');
+    const btnCopy = document.getElementById('copyPixButton');
+    const btnClose = document.getElementById('closeModalButton');
+
+    // Preencher dados
+    const valBrl = (data.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    amountEl.textContent = valBrl;
+    hashEl.textContent = `ID: ${data.hash}`;
+    textarea.value = data.pix.pix_qr_code;
+
+    if (data.pix.qr_code_base64) {
+        qrImage.src = `data:image/png;base64,${data.pix.qr_code_base64}`;
+        qrContainer.style.display = 'block';
+    } else {
+        qrContainer.style.display = 'none';
+    }
+
+    // Abrir Modal
+    modal.classList.add('is-visible');
+
+    // Eventos
+    const closeModal = () => modal.classList.remove('is-visible');
+    
+    btnClose.onclick = closeModal;
+    modal.onclick = (e) => { if(e.target === modal) closeModal(); };
+
+    btnCopy.onclick = () => {
+        textarea.select();
+        document.execCommand('copy');
+        const oldText = document.getElementById('copyButtonText').textContent;
+        document.getElementById('copyButtonText').textContent = "COPIADO! ✅";
+        btnCopy.style.background = "#00c853";
+        setTimeout(() => {
+            document.getElementById('copyButtonText').textContent = oldText;
+            btnCopy.style.background = ""; 
+        }, 2000);
+    };
 }
